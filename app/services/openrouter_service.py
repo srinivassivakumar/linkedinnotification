@@ -23,7 +23,8 @@ OPENROUTER_MODEL = os.getenv(
 def call_openrouter_json(
     prompt,
     system_message,
-    temperature=0.1
+    temperature=0.1,
+    retry_json=True
 ):
     if not OPENROUTER_API_KEY:
         raise RuntimeError(
@@ -85,7 +86,7 @@ def call_openrouter_json(
     print()
     print("RAW OPENROUTER OUTPUT:")
     print("----------------------")
-    print(repr(content))
+    print(ascii(content))
     print()
 
     if not content:
@@ -115,6 +116,21 @@ def call_openrouter_json(
     end = content.rfind("}")
 
     if start == -1 or end == -1:
+        if retry_json:
+            return call_openrouter_json(
+                prompt=(
+                    "Your previous response was not valid JSON. "
+                    "Return only the JSON object requested below.\n\n"
+                    f"{prompt}"
+                ),
+                system_message=(
+                    system_message
+                    + " Return only one valid JSON object and no other text."
+                ),
+                temperature=0,
+                retry_json=False
+            )
+
         raise RuntimeError(
             "OpenRouter response did not contain a JSON object. "
             f"Raw response: {content}"
@@ -126,8 +142,23 @@ def call_openrouter_json(
         return json.loads(json_text)
 
     except json.JSONDecodeError as e:
+        if retry_json:
+            return call_openrouter_json(
+                prompt=(
+                    "Your previous response was invalid JSON. "
+                    "Return only the corrected JSON object requested below.\n\n"
+                    f"{prompt}"
+                ),
+                system_message=(
+                    system_message
+                    + " Return only one valid JSON object and no other text."
+                ),
+                temperature=0,
+                retry_json=False
+            )
+
         print("Invalid JSON returned by OpenRouter:")
-        print(json_text)
+        print(ascii(json_text))
 
         raise RuntimeError(
             f"Could not parse OpenRouter JSON: {e}"

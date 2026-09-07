@@ -1,19 +1,39 @@
+import os
+
 from ddgs import DDGS
 
 
-def web_search(query, max_results=5):
+WEB_SEARCH_BACKEND = os.getenv(
+    "WEB_SEARCH_BACKEND",
+    "duckduckgo"
+)
+
+WEB_SEARCH_TIMEOUT = int(
+    os.getenv(
+        "WEB_SEARCH_TIMEOUT",
+        "5"
+    )
+)
+
+
+def web_search(query, max_results=3):
+    print(f"Searching web: {query}", flush=True)
+
     try:
-        results = DDGS(timeout=10).text(
+        results = DDGS(
+            timeout=WEB_SEARCH_TIMEOUT
+        ).text(
             query,
             region="in-en",
             safesearch="moderate",
-            max_results=max_results
+            max_results=max_results,
+            backend=WEB_SEARCH_BACKEND
         )
 
         return results or []
 
     except Exception as e:
-        print("Web search error:", e)
+        print("Web search error:", e, flush=True)
         return []
 
 
@@ -31,7 +51,7 @@ def search_company_jobs(company):
     for query in queries:
         results = web_search(
             query,
-            max_results=5
+            max_results=3
         )
 
         all_results.extend(results)
@@ -52,7 +72,7 @@ def research_company(company):
         all_results.extend(
             web_search(
                 query,
-                max_results=5
+                max_results=3
             )
         )
 

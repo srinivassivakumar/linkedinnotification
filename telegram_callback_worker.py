@@ -1,3 +1,7 @@
+import time
+
+from app.db import create_tables
+
 from app.services.telegram_service import (
     get_updates,
     answer_callback_query,
@@ -10,130 +14,139 @@ from app.services.connection_repository import (
 )
 
 
-print("Telegram callback worker started.")
-print("Press Ctrl+C to stop.")
+def handle_callback(callback):
+    callback_id = callback["id"]
+    data = callback.get("data", "")
+
+    print("Callback received:", data, flush=True)
+
+    try:
+        action, connection_id = data.split(":")
+        connection_id = int(connection_id)
+
+    except ValueError:
+        answer_callback_query(
+            callback_id,
+            "Invalid callback."
+        )
+        return
+
+    connection = get_connection_by_id(connection_id)
+
+    if connection is None:
+        answer_callback_query(
+            callback_id,
+            "Connection not found."
+        )
+        return
+
+    if action == "approve":
+        update_connection_status(
+            connection_id,
+            "approved"
+        )
+
+        answer_callback_query(
+            callback_id,
+            "Approved"
+        )
+
+        generated_message = connection.get(
+            "generated_message"
+        )
+
+        linkedin_url = connection.get(
+            "linkedin_url"
+        )
+
+        final_text = (
+            "APPROVED\n\n"
+            f"{connection['name']}\n\n"
+            "Final message:\n\n"
+            f"{generated_message}"
+        )
+
+        buttons = []
+
+        if linkedin_url:
+            buttons.append([
+                {
+                    "text": "OPEN LINKEDIN",
+                    "url": linkedin_url
+                }
+            ])
+
+        send_message(
+            final_text,
+            buttons=buttons
+        )
+
+        print(
+            f"Connection {connection_id} approved.",
+            flush=True
+        )
+
+    elif action == "skip":
+        update_connection_status(
+            connection_id,
+            "skipped"
+        )
+
+        answer_callback_query(
+            callback_id,
+            "Skipped"
+        )
+
+        send_message(
+            f"Skipped {connection['name']}"
+        )
+
+        print(
+            f"Connection {connection_id} skipped.",
+            flush=True
+        )
+
+    else:
+        answer_callback_query(
+            callback_id,
+            "Unknown action."
+        )
 
 
-offset = None
+def main():
+    create_tables()
 
+    print("Telegram callback worker started.", flush=True)
+    print("Press Ctrl+C to stop.", flush=True)
 
-while True:
+    offset = None
 
-    updates = get_updates(offset)
-
-    for update in updates.get("result", []):
-
-        offset = update["update_id"] + 1
-
-        callback = update.get("callback_query")
-
-        if not callback:
-            continue
-
-        callback_id = callback["id"]
-        data = callback.get("data", "")
-
-        print("Callback received:", data)
-
-
+    while True:
         try:
-            action, connection_id = data.split(":")
-            connection_id = int(connection_id)
+            updates = get_updates(offset)
 
-        except ValueError:
+            for update in updates.get("result", []):
+                offset = update["update_id"] + 1
 
-            answer_callback_query(
-                callback_id,
-                "Invalid callback."
-            )
+                callback = update.get("callback_query")
 
-            continue
+                if not callback:
+                    continue
 
+                handle_callback(callback)
 
-        connection = get_connection_by_id(connection_id)
+        except KeyboardInterrupt:
+            print()
+            print("Telegram callback worker stopped.", flush=True)
+            break
 
-
-        if connection is None:
-
-            answer_callback_query(
-                callback_id,
-                "Connection not found."
-            )
-
-            continue
-
-
-        if action == "approve":
-
-            update_connection_status(
-                connection_id,
-                "approved"
-            )
-
-            answer_callback_query(
-                callback_id,
-                "Approved ✅"
-            )
-
-            generated_message = connection.get(
-                "generated_message"
-            )
-
-            linkedin_url = connection.get(
-                "linkedin_url"
-            )
-
-            final_text = (
-                f"✅ APPROVED\n\n"
-                f"{connection['name']}\n\n"
-                f"Final message:\n\n"
-                f"{generated_message}"
-            )
-
-            buttons = []
-
-            if linkedin_url:
-                buttons.append([
-                    {
-                        "text": "💬 OPEN LINKEDIN",
-                        "url": linkedin_url
-                    }
-                ])
-
-            send_message(
-                final_text,
-                buttons=buttons
-            )
-
-            print(
-                f"Connection {connection_id} approved."
-            )
+        except Exception as e:
+            print()
+            print("Telegram polling failed:", flush=True)
+            print(type(e).__name__, str(e), flush=True)
+            print("Retrying in 15 seconds...", flush=True)
+            time.sleep(15)
 
 
-        elif action == "skip":
-
-            update_connection_status(
-                connection_id,
-                "skipped"
-            )
-
-            answer_callback_query(
-                callback_id,
-                "Skipped ❌"
-            )
-
-            send_message(
-                f"❌ Skipped {connection['name']}"
-            )
-
-            print(
-                f"Connection {connection_id} skipped."
-            )
-
-
-        else:
-
-            answer_callback_query(
-                callback_id,
-                "Unknown action."
-            )
+if __name__ == "__main__":
+    main()

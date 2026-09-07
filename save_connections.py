@@ -3,7 +3,7 @@ import base64
 
 from dotenv import load_dotenv
 
-from app.db import get_connection
+from app.db import create_tables, get_connection
 from app.services.gmail_service import get_gmail_service
 
 from app.services.connection_repository import (
@@ -22,14 +22,37 @@ from linkedin_email_parser import (
 load_dotenv()
 
 
+DEFAULT_GMAIL_QUERY = 'subject:"accepted your invitation"'
+
+GMAIL_QUERY = os.getenv(
+    "GMAIL_QUERY",
+    DEFAULT_GMAIL_QUERY
+).strip()
+
 LABEL_NAME = os.getenv(
     "GMAIL_LABEL",
-    "LinkedInAccepted"
+    ""
+).strip()
+
+USE_LABEL = os.getenv(
+    "GMAIL_USE_LABEL",
+    "false"
+).strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on"
+}
+
+MAX_RESULTS = int(
+    os.getenv(
+        "GMAIL_MAX_RESULTS",
+        "50"
+    )
 )
 
 
 def decode_base64url(data):
-
     if not data:
         return ""
 
@@ -44,9 +67,7 @@ def decode_base64url(data):
 
 
 def extract_html(payload):
-
     if payload.get("mimeType") == "text/html":
-
         data = payload.get(
             "body",
             {}
@@ -56,7 +77,6 @@ def extract_html(payload):
             return decode_base64url(data)
 
     for part in payload.get("parts", []):
-
         result = extract_html(part)
 
         if result:
@@ -66,9 +86,7 @@ def extract_html(payload):
 
 
 def get_header(headers, name):
-
     for header in headers:
-
         if header["name"].lower() == name.lower():
             return header["value"]
 
@@ -76,7 +94,6 @@ def get_header(headers, name):
 
 
 def sender_name_from_header(sender):
-
     if not sender:
         return None
 
@@ -84,7 +101,6 @@ def sender_name_from_header(sender):
 
 
 def get_label_id(service, label_name):
-
     labels = service.users().labels().list(
         userId="me"
     ).execute().get(
@@ -93,17 +109,78 @@ def get_label_id(service, label_name):
     )
 
     for label in labels:
-
         if label["name"] == label_name:
             return label["id"]
 
     return None
 
 
-def message_already_processed(
-    gmail_message_id
-):
+def list_candidate_messages(service):
+    list_kwargs = {
+        "userId": "me",
+        "maxResults": min(MAX_RESULTS, 500)
+    }
 
+    if GMAIL_QUERY:
+        list_kwargs["q"] = GMAIL_QUERY
+        print(f"Gmail search query: {GMAIL_QUERY}")
+
+    elif LABEL_NAME:
+        print(f"Gmail label: {LABEL_NAME}")
+
+    else:
+        raise RuntimeError(
+            "Set GMAIL_QUERY or GMAIL_LABEL in .env."
+        )
+
+    if USE_LABEL and LABEL_NAME:
+        label_id = get_label_id(
+            service,
+            LABEL_NAME
+        )
+
+        if not label_id:
+            raise RuntimeError(
+                f"Gmail label '{LABEL_NAME}' not found"
+            )
+
+        list_kwargs["labelIds"] = [
+            label_id
+        ]
+
+        print(f"Filtering by label: {LABEL_NAME}")
+
+    messages = []
+    page_token = None
+
+    while len(messages) < MAX_RESULTS:
+        if page_token:
+            list_kwargs["pageToken"] = page_token
+        elif "pageToken" in list_kwargs:
+            del list_kwargs["pageToken"]
+
+        response = service.users().messages().list(
+            **list_kwargs
+        ).execute()
+
+        messages.extend(
+            response.get(
+                "messages",
+                []
+            )
+        )
+
+        page_token = response.get(
+            "nextPageToken"
+        )
+
+        if not page_token:
+            break
+
+    return messages[:MAX_RESULTS]
+
+
+def message_already_processed(gmail_message_id):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -128,10 +205,7 @@ def message_already_processed(
     return exists
 
 
-def mark_processed(
-    gmail_message_id
-):
-
+def mark_processed(gmail_message_id):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -151,11 +225,7 @@ def mark_processed(
     conn.close()
 
 
-def attach_gmail_message_id(
-    connection_id,
-    gmail_message_id
-):
-
+def attach_gmail_message_id(connection_id, gmail_message_id):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -175,71 +245,58 @@ def attach_gmail_message_id(
     conn.close()
 
 
+def get_connection_id_by_gmail_message_id(gmail_message_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT id
+        FROM connections
+        WHERE gmail_message_id = ?
+        """,
+        (
+            gmail_message_id,
+        )
+    )
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if row is None:
+        return None
+
+    return row[0]
+
+
 def main():
+    create_tables()
 
     service = get_gmail_service()
-
-    label_id = get_label_id(
-        service,
-        LABEL_NAME
-    )
-
-    if not label_id:
-
-        raise RuntimeError(
-            f"Gmail label "
-            f"'{LABEL_NAME}' not found"
-        )
-
-
-    result = service.users().messages().list(
-        userId="me",
-        labelIds=[
-            label_id
-        ],
-        maxResults=50
-    ).execute()
-
-
-    messages = result.get(
-        "messages",
-        []
-    )
-
+    messages = list_candidate_messages(service)
 
     print(
         f"Found {len(messages)} "
-        f"labeled emails"
+        "candidate emails"
     )
-
 
     new_count = 0
     skipped_count = 0
     failed_count = 0
 
-
     for item in messages:
-
         gmail_message_id = item["id"]
-
-
-        # -------------------------------------
-        # DUPLICATE CHECK
-        # -------------------------------------
 
         if message_already_processed(
             gmail_message_id
         ):
-
             print(
                 f"Already processed: "
                 f"{gmail_message_id}"
             )
 
             skipped_count += 1
-
             continue
-
 
         print()
         print("=" * 60)
@@ -249,13 +306,7 @@ def main():
             gmail_message_id
         )
 
-
         try:
-
-            # ---------------------------------
-            # DOWNLOAD EMAIL
-            # ---------------------------------
-
             msg = (
                 service.users()
                 .messages()
@@ -267,7 +318,6 @@ def main():
                 .execute()
             )
 
-
             payload = msg.get(
                 "payload",
                 {}
@@ -277,11 +327,6 @@ def main():
                 "headers",
                 []
             )
-
-
-            # ---------------------------------
-            # GET LINKEDIN SENDER NAME
-            # ---------------------------------
 
             sender = get_header(
                 headers,
@@ -294,31 +339,18 @@ def main():
                 )
             )
 
-
-            # ---------------------------------
-            # EXTRACT EMAIL HTML
-            # ---------------------------------
-
             html = extract_html(
                 payload
             )
 
-
             if not html:
-
                 print(
                     "No HTML found. "
                     "Skipping."
                 )
 
                 failed_count += 1
-
                 continue
-
-
-            # ---------------------------------
-            # PARSE LINKEDIN EMAIL
-            # ---------------------------------
 
             parsed = (
                 parse_acceptance_email(
@@ -326,7 +358,6 @@ def main():
                     sender_name
                 )
             )
-
 
             print(
                 "Name:",
@@ -345,39 +376,24 @@ def main():
                 )
             )
 
-
-            # ---------------------------------
-            # VALIDATE MINIMUM DATA
-            # ---------------------------------
-
             if not parsed.get("name"):
-
                 print(
                     "Could not determine name."
                 )
 
                 failed_count += 1
-
                 continue
-
 
             if not parsed.get(
                 "linkedin_profile_url"
             ):
-
                 print(
                     "Could not determine "
                     "LinkedIn profile URL."
                 )
 
                 failed_count += 1
-
                 continue
-
-
-            # ---------------------------------
-            # BUILD PERSON OBJECT
-            # ---------------------------------
 
             person = {
                 "name":
@@ -392,33 +408,34 @@ def main():
                     ),
             }
 
-
-            # ---------------------------------
-            # SAVE BASIC CONNECTION
-            # ---------------------------------
-
             connection_id = (
-                save_connection(
-                    person
+                get_connection_id_by_gmail_message_id(
+                    gmail_message_id
                 )
             )
 
+            if connection_id is None:
+                connection_id = (
+                    save_connection(
+                        person
+                    )
+                )
 
-            attach_gmail_message_id(
-                connection_id,
-                gmail_message_id
-            )
+                attach_gmail_message_id(
+                    connection_id,
+                    gmail_message_id
+                )
 
+                print(
+                    "Saved connection ID:",
+                    connection_id
+                )
 
-            print(
-                "Saved connection ID:",
-                connection_id
-            )
-
-
-            # ---------------------------------
-            # AI + WEB RESEARCH + TELEGRAM
-            # ---------------------------------
+            else:
+                print(
+                    "Reusing connection ID:",
+                    connection_id
+                )
 
             processing_result = (
                 process_and_send_for_approval(
@@ -427,19 +444,11 @@ def main():
                 )
             )
 
-
-            # ---------------------------------
-            # ONLY MARK EMAIL PROCESSED
-            # AFTER PIPELINE FINISHES
-            # ---------------------------------
-
             mark_processed(
                 gmail_message_id
             )
 
-
             new_count += 1
-
 
             print()
             print(
@@ -454,9 +463,7 @@ def main():
                 )
             )
 
-
         except Exception as e:
-
             failed_count += 1
 
             print(
@@ -467,7 +474,6 @@ def main():
                 type(e).__name__,
                 str(e)
             )
-
 
     print()
     print("=" * 60)
