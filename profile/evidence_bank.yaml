@@ -1,0 +1,11 @@
+evidence:
+  - id: example_project
+    type: project
+    title: "Replace with a real project"
+    claims:
+      - "Replace with a verified statement"
+    technologies: []
+    metrics: []
+    source: "resume/project notes"
+    verified: false
+

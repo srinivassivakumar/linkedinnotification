@@ -1,0 +1,83 @@
+[
+  {
+    "source": "fixture",
+    "source_job_id": "perfect-junior",
+    "company": "Acme Cloud",
+    "title": "Associate MLOps Engineer",
+    "location": "Pune / Hybrid",
+    "description": "Build Python services on Linux using Docker, Kubernetes, Git, CI/CD and cloud infrastructure. Work with platform engineers on deployment automation, monitoring, incident response and reliable ML workflows. Terraform and AWS are useful but not mandatory. This role is open to early-career engineers with strong fundamentals.",
+    "url": "https://jobs.example.com/acme/mlops",
+    "posted_at": "2026-09-08T03:00:00Z"
+  },
+  {
+    "source": "fixture",
+    "source_job_id": "senior-role",
+    "company": "Acme Cloud",
+    "title": "Senior DevOps Engineer",
+    "location": "Pune",
+    "description": "Senior role requiring 8+ years of DevOps ownership, Kubernetes platform leadership and production incident command.",
+    "url": "https://jobs.example.com/acme/senior-devops",
+    "posted_at": "2026-09-08T03:00:00Z"
+  },
+  {
+    "source": "fixture",
+    "source_job_id": "wrong-country",
+    "company": "Northwind",
+    "title": "Cloud Engineer",
+    "location": "United States onsite",
+    "description": "Cloud operations role using Linux, Docker and AWS.",
+    "url": "https://jobs.example.com/northwind/cloud",
+    "posted_at": "2026-09-08T03:00:00Z"
+  },
+  {
+    "source": "fixture",
+    "source_job_id": "duplicate-a",
+    "company": "Contoso",
+    "title": "Platform Engineer",
+    "location": "Remote India",
+    "description": "Platform role with Python, Linux, Docker, Kubernetes, CI/CD and Git. Work on internal developer platform reliability and cloud automation.",
+    "url": "https://jobs.example.com/contoso/platform?utm_source=a",
+    "posted_at": "2026-09-08T03:00:00Z"
+  },
+  {
+    "source": "fixture",
+    "source_job_id": "duplicate-b",
+    "company": "Contoso",
+    "title": "Platform Engineer",
+    "location": "Remote India",
+    "description": "Platform role with Python, Linux, Docker, Kubernetes, CI/CD and Git. Work on internal developer platform reliability and cloud automation.",
+    "url": "https://jobs.example.com/contoso/platform?utm_source=b",
+    "posted_at": "2026-09-08T03:00:00Z"
+  },
+  {
+    "source": "fixture",
+    "source_job_id": "stale-role",
+    "company": "OldCo",
+    "title": "DevOps Engineer",
+    "location": "Bengaluru",
+    "description": "DevOps role using Linux, Docker and Git.",
+    "url": "https://jobs.example.com/oldco/devops",
+    "posted_at": "2026-08-01T03:00:00Z"
+  },
+  {
+    "source": "fixture",
+    "source_job_id": "unknown-date",
+    "company": "DataWorks",
+    "title": "Cloud Platform Engineer",
+    "location": "Remote India",
+    "description": "Cloud platform engineering role using Python, Linux, Docker, Git and CI/CD. Kubernetes is useful. Freshness is unknown because the source did not provide a posted date.",
+    "url": "https://jobs.example.com/dataworks/platform",
+    "posted_at": null
+  },
+  {
+    "source": "fixture",
+    "source_job_id": "borderline",
+    "company": "Example AI",
+    "title": "Infrastructure Engineer",
+    "location": "India Remote",
+    "description": "Infrastructure role with Linux and Git. Some Python automation preferred.",
+    "url": "https://jobs.example.com/exampleai/infrastructure",
+    "posted_at": "2026-09-03T03:00:00Z"
+  }
+]
+

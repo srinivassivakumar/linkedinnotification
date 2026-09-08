@@ -1,0 +1,54 @@
+role_families:
+  - devops
+  - cloud
+  - platform
+  - sre
+  - mlops
+  - infrastructure
+
+locations:
+  preferred:
+    - Pune
+    - Bengaluru
+    - Remote India
+  allowed_country:
+    - India
+
+seniority:
+  min_years: 0
+  max_years: 3
+  reject_titles:
+    - Staff
+    - Principal
+    - Director
+    - Head of
+    - VP
+    - Vice President
+
+freshness:
+  max_age_hours: 168
+  strong_age_hours: 24
+
+keywords:
+  strong:
+    - Python
+    - Linux
+    - Docker
+    - Kubernetes
+    - Git
+    - CI/CD
+  useful:
+    - Terraform
+    - AWS
+    - GCP
+    - Azure
+    - Ansible
+    - Ceph
+
+scoring:
+  strong_candidate: 68
+  review: 55
+  p0: 85
+  p1: 80
+  p2: 65
+

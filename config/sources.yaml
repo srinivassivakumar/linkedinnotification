@@ -1,0 +1,16 @@
+sources:
+  greenhouse:
+    enabled: true
+    boards: []
+  lever:
+    enabled: true
+    companies: []
+  ashby:
+    enabled: true
+    companies: []
+  career_ops:
+    enabled: false
+  live_check:
+    enabled: false
+    timeout_seconds: 8
+

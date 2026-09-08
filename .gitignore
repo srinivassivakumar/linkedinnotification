@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+.env
+*.pyc
+*.pyo
+*.log
+artifacts/generated/
+state/runtime/
+.DS_Store
+Thumbs.db
+

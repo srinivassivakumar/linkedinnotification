@@ -1,0 +1,8 @@
+requests
+pyyaml
+python-dotenv
+pydantic
+tenacity
+pytest
+pytest-cov
+
