@@ -7,6 +7,11 @@ from orchestrator.models import Candidate, Job
 
 
 class MockProvider(IntelligenceProvider):
+    #: Deterministic stand-in - never produces real tailored content. The
+    #: callback worker checks this to decide whether to queue a draft request
+    #: for a Claude Code session instead of serving a placeholder.
+    is_live = False
+
     def evaluate_jobs(self, candidates: list[Candidate], evidence: list[dict[str, Any]]) -> list[Candidate]:
         output: list[Candidate] = []
         for candidate in candidates:

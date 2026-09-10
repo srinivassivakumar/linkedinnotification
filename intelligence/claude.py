@@ -288,6 +288,10 @@ def _strip_json(text: str) -> str:
 
 
 class ClaudeProvider(IntelligenceProvider):
+    #: Real reasoning layer. When this provider is active the callback worker
+    #: serves drafts directly instead of queueing a draft request.
+    is_live = True
+
     def __init__(
         self,
         *,

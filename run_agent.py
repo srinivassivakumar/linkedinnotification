@@ -6,6 +6,10 @@ Subcommands:
   telegram   run the Telegram callback (approval) worker loop (local always-on)
   workers    run gmail + telegram workers together, supervised (local always-on)
   once       one scan pass + one gmail pass
+  drafts     Path B: --list shows queued PREPARE/RESUME/EMAIL/LINKEDIN button
+             presses (job + evidence) for a Claude Code session to tailor;
+             --deliver <id> reads the written files back and pushes the draft
+             to Telegram. No Anthropic API key involved.
   cloud      one full tick for a scheduled/cloud runner: scan + gmail pass +
              drain pending Telegram approvals, then (optionally) persist state to
              git. Nothing device-bound; safe to run headless on a schedule.
@@ -154,6 +158,28 @@ def _run_callbacks() -> None:
     print(json.dumps(drain_callbacks(bot, store, provider), indent=2, default=str))
 
 
+def _run_drafts(args: argparse.Namespace) -> None:
+    from application.drafts import deliver_one, list_pending
+    from intelligence.provider import get_intelligence_provider
+    from state.store import SqliteStore
+    from telegram.bot import TelegramBot
+
+    store = SqliteStore(ROOT / "state")
+
+    if args.deliver is not None:
+        provider = get_intelligence_provider(os.getenv("CLAUDE_MODE", "mock"))
+        result = deliver_one(store, TelegramBot(), provider, args.deliver, dry_run=args.dry_run)
+        print(json.dumps(result, indent=2, sort_keys=True, default=str))
+        if result.get("status") == "ok" and os.getenv("AGENT_PERSIST_GIT") == "1":
+            print(_git_persist(
+                ["state/career_agent.db", "artifacts/generated"],
+                f"drafts: delivered #{args.deliver} [skip ci]",
+            ))
+        return
+
+    print(json.dumps(list_pending(store), indent=2, sort_keys=True, default=str))
+
+
 def _run_naukri(args: argparse.Namespace) -> None:
     from intelligence.provider import get_intelligence_provider
     from orchestrator.models import Candidate
@@ -242,6 +268,12 @@ def main() -> None:
     p_naukri.add_argument("--description", default="")
     p_naukri.add_argument("--dry-run", action="store_true")
 
+    p_drafts = sub.add_parser("drafts")
+    p_drafts.add_argument("--list", action="store_true", help="(default) show the queued draft requests")
+    p_drafts.add_argument("--deliver", type=int, default=None, metavar="ID",
+                          help="deliver the tailored files for request ID to Telegram")
+    p_drafts.add_argument("--dry-run", action="store_true")
+
     sub.add_parser("gmail")
     sub.add_parser("telegram")
     sub.add_parser("workers")
@@ -258,6 +290,8 @@ def main() -> None:
         _run_cloud(args)
     elif args.command == "callbacks":
         _run_callbacks()
+    elif args.command == "drafts":
+        _run_drafts(args)
     elif args.command == "naukri":
         _run_naukri(args)
     elif args.command == "gmail":

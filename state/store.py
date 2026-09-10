@@ -108,7 +108,19 @@ CREATE TABLE IF NOT EXISTS runtime (
     key   TEXT PRIMARY KEY,
     value TEXT
 );
+
+CREATE TABLE IF NOT EXISTS draft_requests (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_key      TEXT NOT NULL,
+    kind         TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'pending',
+    detail       TEXT,
+    requested_at TEXT NOT NULL,
+    completed_at TEXT
+);
 """
+
+DRAFT_KINDS = ("prepare", "resume", "email", "linkedin")
 
 
 class SqliteStore:
@@ -427,6 +439,48 @@ class SqliteStore:
                 "INSERT OR IGNORE INTO processed_emails (gmail_message_id, kind, processed_at) "
                 "VALUES (?,?,?)",
                 (gmail_message_id, kind, _now()),
+            )
+
+    # -- draft requests (queue drained by a Claude Code session) ----------
+    def enqueue_draft_request(self, job_key: str, kind: str) -> int:
+        """Queue a tailoring request. Returns the id; reuses an existing
+        pending row for the same job_key + kind so repeated button presses
+        do not pile up."""
+        with self._connect() as conn:
+            existing = conn.execute(
+                "SELECT id FROM draft_requests WHERE job_key = ? AND kind = ? AND status = 'pending'",
+                (job_key, kind),
+            ).fetchone()
+            if existing:
+                return int(existing["id"])
+            cursor = conn.execute(
+                "INSERT INTO draft_requests (job_key, kind, status, requested_at) "
+                "VALUES (?, ?, 'pending', ?)",
+                (job_key, kind, _now()),
+            )
+            return int(cursor.lastrowid)
+
+    def pending_draft_requests(self) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM draft_requests WHERE status = 'pending' ORDER BY id"
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_draft_request(self, request_id: int) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM draft_requests WHERE id = ?", (request_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def mark_draft_request(self, request_id: int, status: str, detail: str | None = None) -> None:
+        completed = _now() if status in {"delivered", "failed", "cancelled"} else None
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE draft_requests SET status = ?, detail = COALESCE(?, detail), "
+                "completed_at = COALESCE(?, completed_at) WHERE id = ?",
+                (status, detail, completed, request_id),
             )
 
     # -- runtime ------------------------------------------------

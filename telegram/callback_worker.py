@@ -56,6 +56,24 @@ def _ensure_application(candidate: Any, store: SqliteStore, provider: Any) -> An
     )
 
 
+_KIND_LABEL = {
+    "prepare": "full application package",
+    "resume": "tailored resume",
+    "email": "recruiter email",
+    "linkedin": "LinkedIn / referral note",
+}
+_TAILORED_MARKER = "_claude_tailored.json"
+
+
+def _has_real_draft(candidate: Any) -> bool:
+    """True once a Claude drafting run has delivered real artifacts for this job.
+
+    Until then a non-live provider only has placeholder text to offer, so the
+    button press is queued instead.
+    """
+    return (_artifact_dir(candidate) / _TAILORED_MARKER).exists()
+
+
 def _read_artifact(path: Any, name: str, limit: int = 3200) -> str:
     target = path / name
     if not target.exists():
@@ -131,55 +149,81 @@ def handle_callback(
             contacts = store.contacts_for_company(candidate.job.company)
             bot.send_message(people_search_card(candidate, contacts), people_search_buttons(candidate))
             return "people_sent"
-        if action in {"resume", "email", "linkedin"}:
+        if action in {"prepare", "resume", "email", "linkedin"}:
+            # A non-live provider (CLAUDE_MODE=mock, i.e. the whole GitHub Actions
+            # setup) can only produce placeholder text. Queue the request so a
+            # Claude Code drafting run writes the real artifacts, then delivers
+            # them here. Once that has happened (_TAILORED_MARKER present) the
+            # button serves the real draft immediately.
+            if not getattr(provider, "is_live", False) and not _has_real_draft(candidate):
+                req_id = store.enqueue_draft_request(job_key, action)
+                store.append_event("draft_requested", job_key, {"kind": action, "request_id": req_id})
+                bot.answer_callback_query(callback_id, "Queued for Claude ✍️")
+                bot.send_message(
+                    f"✍️ QUEUED FOR CLAUDE — {_KIND_LABEL[action]}\n\n"
+                    f"{candidate.job.company} · {candidate.job.title}\n\n"
+                    f"Request #{req_id} is in the queue. The next Claude drafting run delivers the "
+                    f"real, evidence-grounded {_KIND_LABEL[action]} here — not a placeholder. "
+                    f"Nothing is ever submitted or sent for you."
+                )
+                return f"queued:{action}"
             bot.answer_callback_query(callback_id, "Preparing draft...")
-            try:
-                path = _ensure_application(candidate, store, provider)
-            except NotP0Error as exc:
-                bot.send_message(f"❌ Not preparing: {exc}")
-                return "prepare_refused"
-            if action == "resume":
-                resume = _read_artifact(path, "resume.md")
-                send_document = getattr(bot, "send_document", None)
-                if callable(send_document) and (path / "resume.md").exists():
-                    send_document(path / "resume.md", caption=f"Updated resume draft for {candidate.job.company} - {candidate.job.title}")
-                bot.send_message(
-                    f"📄 UPDATED RESUME DRAFT\n\n{candidate.job.company} · {candidate.job.title}\n\n{resume}\n\nArtifacts: {path}"
-                )
-                return "resume_sent"
-            if action == "email":
-                draft = _read_artifact(path, "recruiter_email.txt")
-                bot.send_message(
-                    f"✉️ RECRUITER EMAIL DRAFT\n\n{candidate.job.company} · {candidate.job.title}\n\n{draft}",
-                    draft_buttons(candidate, kind="email", draft=draft),
-                )
-                return "email_draft_sent"
-            draft = _read_artifact(path, "linkedin_message.txt")
-            if draft.startswith("NEEDS_CONFIRMATION"):
-                draft = _read_artifact(path, "referral_message.txt")
-            bot.send_message(
-                f"💬 LINKEDIN / REFERRAL DRAFT\n\n{candidate.job.company} · {candidate.job.title}\n\n{draft}\n\nSend manually only.",
-                draft_buttons(candidate, kind="linkedin", draft=draft),
-            )
-            return "linkedin_draft_sent"
-        if action == "prepare":
-            bot.answer_callback_query(callback_id, "Preparing application...")
-            try:
-                # Pressing PREPARE is an explicit human decision -> allow P1 override,
-                # but the factory still refuses weak jobs.
-                path = _ensure_application(candidate, store, provider)
-            except NotP0Error as exc:
-                bot.send_message(f"❌ Not preparing: {exc}")
-                return "prepare_refused"
-            store.set_job_status(job_key, "preparing")
-            store.append_event("application_prepared", job_key, {"artifact_dir": str(path)})
-            bot.send_message(
-                f"📦 Application prepared for {candidate.job.company}\n\nArtifacts: {path}",
-                people_search_buttons(candidate),
-            )
-            return "prepared"
+            return deliver_draft(action, candidate, store, provider, bot)
 
     return "ignored"
+
+
+def deliver_draft(
+    action: str,
+    candidate: Any,
+    store: SqliteStore,
+    provider: Any,
+    bot: TelegramBot,
+) -> str:
+    """Build the artifact package if needed and push the requested draft to
+    Telegram. Shared by the live-provider button path and the queue drain
+    (``run_agent.py drafts --deliver``)."""
+    try:
+        path = _ensure_application(candidate, store, provider)
+    except NotP0Error as exc:
+        bot.send_message(f"❌ Not preparing: {exc}")
+        return "prepare_refused"
+
+    if action == "prepare":
+        store.set_job_status(candidate.job_key, "preparing")
+        store.append_event("application_prepared", candidate.job_key, {"artifact_dir": str(path)})
+        bot.send_message(
+            f"📦 Application prepared for {candidate.job.company}\n\nArtifacts: {path}",
+            people_search_buttons(candidate),
+        )
+        return "prepared"
+    if action == "resume":
+        resume = _read_artifact(path, "resume.md")
+        send_document = getattr(bot, "send_document", None)
+        if callable(send_document) and (path / "resume.md").exists():
+            send_document(
+                path / "resume.md",
+                caption=f"Updated resume draft for {candidate.job.company} - {candidate.job.title}",
+            )
+        bot.send_message(
+            f"📄 UPDATED RESUME DRAFT\n\n{candidate.job.company} · {candidate.job.title}\n\n{resume}\n\nArtifacts: {path}"
+        )
+        return "resume_sent"
+    if action == "email":
+        draft = _read_artifact(path, "recruiter_email.txt")
+        bot.send_message(
+            f"✉️ RECRUITER EMAIL DRAFT\n\n{candidate.job.company} · {candidate.job.title}\n\n{draft}",
+            draft_buttons(candidate, kind="email", draft=draft),
+        )
+        return "email_draft_sent"
+    draft = _read_artifact(path, "linkedin_message.txt")
+    if draft.startswith("NEEDS_CONFIRMATION"):
+        draft = _read_artifact(path, "referral_message.txt")
+    bot.send_message(
+        f"💬 LINKEDIN / REFERRAL DRAFT\n\n{candidate.job.company} · {candidate.job.title}\n\n{draft}\n\nSend manually only.",
+        draft_buttons(candidate, kind="linkedin", draft=draft),
+    )
+    return "linkedin_draft_sent"
 
 
 _OFFSET_KEY = "telegram_callback_offset"
