@@ -111,7 +111,7 @@ def _run_cloud(args: argparse.Namespace) -> None:
     if os.getenv("AGENT_PERSIST_GIT") == "1":
         summary["persist"] = _git_persist(
             ["state/career_agent.db"],
-            f"state: cloud tick ({summary['scan_counts'].get('new_or_changed', 0)} new)",
+            f"state: cloud tick ({scan_counts.get('new_or_changed', 0)} new) [skip ci]",
         )
 
     print(json.dumps(summary, indent=2, sort_keys=True, default=str))
@@ -135,6 +135,23 @@ def _run_gmail_once() -> None:
     from gmail.watcher import run_once
 
     print(json.dumps(run_once(), indent=2, default=str))
+
+
+def _run_callbacks() -> None:
+    """Drain-only: process pending Telegram button presses, fast. No scan, no Gmail.
+
+    This is the frequent (~10 min) cloud job so approvals feel responsive between
+    the twice-daily full ticks.
+    """
+    from intelligence.provider import get_intelligence_provider
+    from state.store import SqliteStore
+    from telegram.bot import TelegramBot
+    from telegram.callback_worker import drain_callbacks
+
+    bot = TelegramBot()
+    store = SqliteStore(ROOT / "state")
+    provider = get_intelligence_provider(os.getenv("CLAUDE_MODE", "mock"))
+    print(json.dumps(drain_callbacks(bot, store, provider), indent=2, default=str))
 
 
 def _run_naukri(args: argparse.Namespace) -> None:
@@ -228,6 +245,7 @@ def main() -> None:
     sub.add_parser("gmail")
     sub.add_parser("telegram")
     sub.add_parser("workers")
+    sub.add_parser("callbacks")
     sub.add_parser("once").add_argument("--limit", type=int, default=None)
     p_cloud = sub.add_parser("cloud")
     p_cloud.add_argument("--limit", type=int, default=None)
@@ -238,6 +256,8 @@ def main() -> None:
         _run_scan(args)
     elif args.command == "cloud":
         _run_cloud(args)
+    elif args.command == "callbacks":
+        _run_callbacks()
     elif args.command == "naukri":
         _run_naukri(args)
     elif args.command == "gmail":

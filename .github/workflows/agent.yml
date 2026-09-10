@@ -20,7 +20,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: career-agent-tick
+  group: career-agent-state   # shared with the Callbacks workflow: no racing git push
   cancel-in-progress: false
 
 jobs:
@@ -55,6 +55,6 @@ jobs:
           # state/*.db is gitignored for local dev, so force-add just the DB.
           git add -f state/career_agent.db
           if git diff --cached --quiet; then echo "no state change"; exit 0; fi
-          git commit -m "state: automated cloud tick"
+          git commit -m "state: automated cloud tick [skip ci]"
           git pull --rebase --autostash || true
           git push
