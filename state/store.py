@@ -225,6 +225,13 @@ class SqliteStore:
                 (now,),
             )
 
+    def known_job_keys(self) -> set[str]:
+        """Every job_key ever persisted - shown, skipped, saved, preparing or
+        applied. Live mode uses this so a job is surfaced as *new* exactly once,
+        for the life of the local state database."""
+        with self._connect() as conn:
+            return {row["job_key"] for row in conn.execute("SELECT job_key FROM jobs")}
+
     def load_latest_jobs(self) -> dict[str, Candidate]:
         latest: dict[str, Candidate] = {}
         with self._connect() as conn:

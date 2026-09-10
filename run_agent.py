@@ -1,6 +1,11 @@
 """Single entry point for the integrated career agent.
 
 Subcommands:
+  live       one long-running local process: immediate scan on startup (7-day
+             window the first time, 12-hour window every scan after), then the
+             sole Telegram listener - callbacks run locally, AI actions use the
+             signed-in local Claude Code CLI, a SCAN NOW button + optional
+             2-hourly rescan. No GitHub Actions involved.
   scan       one deterministic scan pass (ATS sources -> score -> Telegram cards)
   gmail      run the background Gmail watcher loop (local always-on machine)
   telegram   run the Telegram callback (approval) worker loop (local always-on)
@@ -256,6 +261,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Integrated career agent")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    p_live = sub.add_parser("live")
+    p_live.add_argument("--ai", choices=["local", "mock"], default="local",
+                        help="'local' = signed-in Claude Code CLI for PREPARE/RESUME/EMAIL/LINKEDIN (default); "
+                             "'mock' = deterministic placeholders")
+    p_live.add_argument("--scan-interval", type=float, default=2.0,
+                        help="hours between automatic rescans while running; 0 disables")
+    p_live.add_argument("--first-window-days", type=int, default=7)
+    p_live.add_argument("--scan-window-hours", type=int, default=12)
+    p_live.add_argument("--no-gmail", action="store_true", help="do not run the Gmail pass on the loop")
+    p_live.add_argument("--limit", type=int, default=None)
+
     p_scan = sub.add_parser("scan")
     p_scan.add_argument("--dry-run", action="store_true")
     p_scan.add_argument("--limit", type=int, default=None)
@@ -284,7 +300,11 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if args.command == "scan":
+    if args.command == "live":
+        from orchestrator.live import run_live
+
+        run_live(args)
+    elif args.command == "scan":
         _run_scan(args)
     elif args.command == "cloud":
         _run_cloud(args)

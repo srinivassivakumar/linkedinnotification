@@ -79,6 +79,7 @@ def build_candidates(
     preferences: dict[str, Any],
     evidence: list[dict[str, Any]],
     sources_config: dict[str, Any],
+    max_age_hours: int | None = None,
 ) -> tuple[list[Candidate], dict[str, int]]:
     counts = {"raw": len(jobs), "normalized": len(jobs)}
     unique, duplicates = dedupe_jobs(jobs)
@@ -97,11 +98,12 @@ def build_candidates(
         "strong_or_review": 0,
     }
     freshness_cfg = preferences.get("freshness", {})
+    effective_max_age = int(max_age_hours if max_age_hours is not None else freshness_cfg.get("max_age_hours", 168))
     for job in unique:
         live = live_status(job.url, bool(live_cfg.get("enabled", False)), int(live_cfg.get("timeout_seconds", 8)))
         if live != "dead":
             stage_counts["live_or_unknown"] += 1
-        fresh = freshness_status(job, max_age_hours=int(freshness_cfg.get("max_age_hours", 168)))
+        fresh = freshness_status(job, max_age_hours=effective_max_age)
         if fresh != "stale":
             stage_counts["fresh_or_unknown"] += 1
         keep, warnings, decisions = apply_conservative_filters(job, preferences, live, fresh)

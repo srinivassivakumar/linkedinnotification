@@ -223,14 +223,15 @@ def process_message(
     return f"reply:{classification.get('type')}"
 
 
-def run_once() -> dict[str, Any]:
+def run_once(provider: Any | None = None) -> dict[str, Any]:
     load_dotenv()
     if not credentials_present():
         return {"status": "disabled", "reason": "Gmail secrets/credentials.json + token.json missing."}
     query = os.getenv("GMAIL_QUERY", DEFAULT_QUERY)
     max_results = int(os.getenv("GMAIL_MAX_RESULTS", "25"))
     store = SqliteStore(ROOT / "state")
-    provider = get_intelligence_provider(os.getenv("CLAUDE_MODE", "mock"))
+    if provider is None:
+        provider = get_intelligence_provider(os.getenv("CLAUDE_MODE", "mock"))
     bot = TelegramBot()
     service = get_gmail_service()
 

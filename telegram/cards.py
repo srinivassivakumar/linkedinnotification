@@ -301,6 +301,37 @@ def draft_buttons(candidate: Candidate, *, kind: str, draft: str = "") -> dict[s
     return keyboard(rows)
 
 
+def scan_now_button() -> dict[str, list[list[dict[str, str]]]]:
+    return keyboard([[action("🔄 SCAN NOW", "scan:now")]])
+
+
+def live_status_card(
+    *,
+    scans: int,
+    new_jobs: int,
+    last_scan: str,
+    next_scan: str,
+    ai_mode: str,
+    gmail: str,
+) -> str:
+    return "\n".join(
+        [
+            "🟢 CAREER AGENT · LIVE",
+            DIVIDER,
+            "",
+            f"Scans run        {scans}",
+            f"New jobs shown   {new_jobs}",
+            f"Last scan        {last_scan}",
+            f"Next auto scan   {next_scan}",
+            "",
+            f"🧠 AI actions     {ai_mode}",
+            f"📬 Gmail watch    {gmail}",
+            "",
+            "This process is the only Telegram listener.",
+        ]
+    )
+
+
 def naukri_card(candidate: Candidate) -> str:
     job = candidate.job
     score = candidate.score

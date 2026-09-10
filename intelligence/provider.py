@@ -60,6 +60,10 @@ def get_intelligence_provider(mode: str):
         from intelligence.claude import ClaudeProvider
 
         return ClaudeProvider()
+    if normalized in {"claude_cli", "claude-cli", "local", "cli"}:
+        from intelligence.claude_cli import ClaudeCliProvider
+
+        return ClaudeCliProvider()
     if normalized not in {"mock", "heuristic", "deterministic", "off", "none"}:
         print(f"intelligence: unknown CLAUDE_MODE {mode!r}; using deterministic MockProvider", flush=True)
     from intelligence.mock import MockProvider
