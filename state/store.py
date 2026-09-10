@@ -435,6 +435,14 @@ class SqliteStore:
             row = conn.execute("SELECT value FROM runtime WHERE key = ?", (key,)).fetchone()
         return row["value"] if row else None
 
+    def set_runtime(self, key: str, value: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO runtime (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (key, value),
+            )
+
 
 # Backward-compatible alias for older imports.
 JsonlStore = SqliteStore

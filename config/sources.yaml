@@ -1,13 +1,54 @@
 sources:
-  greenhouse:
-    enabled: true
-    boards: []
-  lever:
-    enabled: true
-    companies: []
-  ashby:
-    enabled: true
-    companies: []
+  ats:
+    greenhouse:
+      enabled: true
+      boards:
+        - stripe
+        - databricks
+        - anthropic
+        - scaleai
+        - mongodb
+        - figma
+        - airtable
+    lever:
+      enabled: true
+      # Verified: api.lever.co/v0/postings/<slug> returned HTTP 200 with active
+      # postings on 2026-09-10. India-based companies kept first.
+      companies:
+        - meesho
+        - cred
+        - zeta
+        - freshworks
+        - palantir
+    ashby:
+      enabled: true
+      companies:
+        - openai
+        - cursor
+        - cohere
+        - perplexity
+        - snowflake
+        - zapier
+  portals:
+    linkedin:
+      enabled: true
+    indeed:
+      enabled: true
+      country: india
+    naukri:
+      enabled: true
+    foundit:
+      enabled: true
+    hirist:
+      enabled: true
+    cutshort:
+      enabled: true
+    instahyre:
+      enabled: true
+    wellfound:
+      enabled: true
+    shine:
+      enabled: false
   career_ops:
     enabled: false
     notes: "Enable after Career Ops/Apify connector path is reviewed and pinned."

@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
 import requests
 from dotenv import load_dotenv
 
 from orchestrator.models import Candidate
-from telegram.cards import candidate_card, demo_dashboard_messages, inline_buttons
+from telegram.cards import (
+    candidate_card,
+    demo_dashboard_messages,
+    inline_buttons,
+    naukri_buttons,
+    naukri_card,
+)
 
 
 class TelegramBot:
@@ -33,6 +40,30 @@ class TelegramBot:
         if reply_markup:
             payload["reply_markup"] = reply_markup
         response = requests.post(url, json=payload, timeout=self.timeout_seconds)
+        response.raise_for_status()
+        return response.json()
+
+    def send_document(
+        self,
+        path: Path | str,
+        caption: str | None = None,
+        reply_markup: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if not self.configured:
+            return {"ok": False, "skipped": True, "reason": "Telegram not configured"}
+        target = Path(path)
+        payload: dict[str, Any] = {"chat_id": self.chat_id}
+        if caption:
+            payload["caption"] = caption[:1024]
+        if reply_markup:
+            payload["reply_markup"] = reply_markup
+        with target.open("rb") as fh:
+            response = requests.post(
+                f"https://api.telegram.org/bot{self.token}/sendDocument",
+                data=payload,
+                files={"document": (target.name, fh)},
+                timeout=self.timeout_seconds,
+            )
         response.raise_for_status()
         return response.json()
 
@@ -70,6 +101,17 @@ class TelegramBot:
             if candidate.score.bucket == "weak":
                 continue
             result = self.send_message(candidate_card(candidate), inline_buttons(candidate))
+            if result.get("ok"):
+                sent.append(candidate.job_key)
+        return sent
+
+    def send_naukri_candidates(self, candidates: list[Candidate]) -> list[str]:
+        """Naukri cards carry OPEN/APPLY links only - no prepare/automation buttons."""
+        sent: list[str] = []
+        for candidate in candidates:
+            if candidate.score.bucket == "weak":
+                continue
+            result = self.send_message(naukri_card(candidate), naukri_buttons(candidate))
             if result.get("ok"):
                 sent.append(candidate.job_key)
         return sent

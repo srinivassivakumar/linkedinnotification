@@ -18,6 +18,7 @@ from typing import Any
 from dotenv import load_dotenv
 
 from gmail.auth import credentials_present, get_gmail_service
+from gmail.classifier import classify_email
 from intelligence.provider import get_intelligence_provider
 from linkedin.connections import process_accepted_connection
 from linkedin.email_parser import parse_acceptance_email
@@ -29,7 +30,8 @@ from telegram.cards import connection_buttons, connection_card
 DEFAULT_QUERY = (
     'newer_than:3d ('
     'subject:"accepted your invitation" OR subject:interview OR subject:assessment '
-    'OR subject:application OR subject:recruiter OR subject:offer OR subject:opportunity'
+    'OR subject:application OR subject:recruiter OR subject:offer OR subject:opportunity '
+    'OR subject:naukri OR from:naukri OR "job alert" OR "recommended jobs"'
     ')'
 )
 
@@ -84,11 +86,11 @@ def _handle_naukri_alert(payload: dict[str, Any], store: SqliteStore, bot: Teleg
     from orchestrator.policies import load_evidence, load_preferences
     from orchestrator.scorer import score_job
     from sources.naukri import jobs_from_alert_email
-    from telegram.cards import candidate_card, inline_buttons
+    from telegram.cards import naukri_buttons, naukri_card
 
     prefs = load_preferences()
     evidence = load_evidence()
-    jobs = jobs_from_alert_email(extract_html(payload))
+    jobs = jobs_from_alert_email(extract_html(payload) or extract_text(payload))
     candidates = [Candidate(job=job, score=score_job(job, prefs, evidence)) for job in jobs]
     new = store.diff_new_or_changed(candidates)
     store.persist(new)
@@ -97,9 +99,72 @@ def _handle_naukri_alert(payload: dict[str, Any], store: SqliteStore, bot: Teleg
         if candidate.score.bucket == "weak":
             continue
         if bot.configured:
-            bot.send_message(candidate_card(candidate), inline_buttons(candidate))
+            bot.send_message(naukri_card(candidate), naukri_buttons(candidate))
         carded += 1
     return f"naukri:{len(jobs)} parsed, {carded} carded (manual OPEN/APPLY only)"
+
+
+_ALWAYS_HUMAN = {"offer", "unknown"}
+
+
+def classify_inbound(sender: str, subject: str, snippet: str, provider: Any) -> dict[str, Any]:
+    """Deterministic base classification, optionally enriched by Claude.
+
+    The deterministic safety gate always wins: offers / compensation / ambiguous
+    mail stay ``needs_human`` regardless of what Claude returns, and Claude is
+    never allowed to downgrade an ``offer`` to something auto-actionable.
+    """
+    base = classify_email(sender, subject, snippet)
+    if os.getenv("CLAUDE_MODE", "mock") != "claude":
+        return base
+    try:
+        enriched = provider.classify_reply({"sender": sender, "subject": subject, "snippet": snippet})
+    except Exception as exc:  # noqa: BLE001 - fall back to deterministic
+        base["claude_error"] = str(exc)
+        return base
+    merged = dict(base)
+    merged["company"] = enriched.get("company") or base.get("company")
+    merged["role"] = enriched.get("role") or base.get("role")
+    if base["type"] == "offer" or base["type"] in _ALWAYS_HUMAN:
+        merged["needs_human"] = True
+    else:
+        merged["type"] = enriched.get("type", base["type"])
+        merged["recommended_action"] = enriched.get("recommended_action", base["recommended_action"])
+        merged["needs_human"] = bool(base["needs_human"] or enriched.get("needs_human"))
+    merged["provider"] = "claude+deterministic"
+    return merged
+
+
+def _handle_interview_invite(
+    payload: dict[str, Any], subject: str, snippet: str, classification: dict[str, Any],
+    store: SqliteStore, provider: Any, bot: TelegramBot,
+) -> None:
+    from interview.prep import build_prep_pack, write_prep_pack
+    from interview.schedule import extract_interview_datetime, propose_calendar_event
+
+    body = extract_text(payload) or extract_html(payload) or snippet
+    company = classification.get("company") or "the company"
+    role = classification.get("role") or "the role"
+    when = extract_interview_datetime(f"{subject}\n{body}")
+
+    pack = build_prep_pack({"company": company, "role": role, "description": body}, provider=provider)
+    if when:
+        pack["scheduled_for"] = when.isoformat()
+    path = write_prep_pack(pack)
+    proposal = propose_calendar_event(company, role, when, notes=f"From: {subject}")
+    store.append_event("interview_prep_ready", None, {"artifact": str(path), "calendar_proposal": proposal})
+
+    if bot.configured:
+        parts = [
+            f"🎯 INTERVIEW INVITE · {company}",
+            f"Role: {role}",
+            f"When: {when.isoformat() if when else 'not detected — confirm from the email'}",
+            "",
+            f"Prep pack: {path}",
+            "",
+            "Calendar event is NOT created. Reply/approve to have it added to Google Calendar.",
+        ]
+        bot.send_message("\n".join(parts))
 
 
 def _is_linkedin_acceptance(subject: str, sender: str) -> bool:
@@ -133,20 +198,21 @@ def process_message(
             bot.send_message(connection_card(connection), connection_buttons(connection))
         return "linkedin:carded"
 
-    if "naukri" in sender.lower():
+    if "naukri" in sender.lower() or "naukri" in subject.lower():
         result = _handle_naukri_alert(payload, store, bot)
         store.mark_email_processed(message_id, "naukri_alert")
         return result
 
-    classification = provider.classify_reply(
-        {"sender": sender, "subject": subject, "snippet": snippet}
-    )
+    classification = classify_inbound(sender, subject, snippet, provider)
     store.append_event(
         "email_classified",
         None,
         {"message_id": message_id, "subject": subject, **classification},
     )
     store.mark_email_processed(message_id, f"reply:{classification.get('type')}")
+
+    if classification.get("type") == "interview_invite":
+        _handle_interview_invite(payload, subject, snippet, classification, store, provider, bot)
     if bot.configured:
         prefix = "🚨 ESCALATE" if classification.get("needs_human") else "📨 Inbox"
         bot.send_message(

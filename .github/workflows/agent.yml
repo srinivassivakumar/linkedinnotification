@@ -1,0 +1,60 @@
+name: Career Agent - Cloud Tick
+
+# Runs entirely in GitHub's free cloud - no device online, no Anthropic API.
+# Each tick: ATS scan -> Gmail pass -> drain pending Telegram approvals, then
+# commit the SQLite state back to the branch so the next tick resumes from it.
+#
+# Required repo secrets (Settings -> Secrets and variables -> Actions):
+#   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, APPROVAL_SECRET
+#   GMAIL_CREDENTIALS_JSON  (full contents of secrets/credentials.json)
+#   GMAIL_TOKEN_JSON        (full contents of secrets/token.json)
+# Settings -> Actions -> General -> Workflow permissions: "Read and write".
+
+on:
+  schedule:
+    # 07:00 and 19:00 IST (UTC+5:30) -> 01:30 and 13:30 UTC
+    - cron: "30 1,13 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: career-agent-tick
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: pip install -r requirements.txt
+
+      - name: Run cloud tick
+        env:
+          # Never "claude" -> stays on the deterministic provider, zero API cost.
+          CLAUDE_MODE: mock
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          APPROVAL_SECRET: ${{ secrets.APPROVAL_SECRET }}
+          GMAIL_CREDENTIALS_JSON: ${{ secrets.GMAIL_CREDENTIALS_JSON }}
+          GMAIL_TOKEN_JSON: ${{ secrets.GMAIL_TOKEN_JSON }}
+        run: python run_agent.py cloud
+
+      - name: Commit updated state
+        run: |
+          git config user.name "career-agent-bot"
+          git config user.email "actions@users.noreply.github.com"
+          # state/*.db is gitignored for local dev, so force-add just the DB.
+          git add -f state/career_agent.db
+          if git diff --cached --quiet; then echo "no state change"; exit 0; fi
+          git commit -m "state: automated cloud tick"
+          git pull --rebase --autostash || true
+          git push

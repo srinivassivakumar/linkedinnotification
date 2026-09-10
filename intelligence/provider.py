@@ -47,14 +47,22 @@ def candidate_payload(candidate: Candidate, evidence: list[dict[str, Any]]) -> d
 
 
 def get_intelligence_provider(mode: str):
-    normalized = (mode or "mock").strip().lower()
-    if normalized == "mock":
-        from intelligence.mock import MockProvider
+    """Return the AI provider for ``mode``.
 
-        return MockProvider()
+    Only the exact value ``"claude"`` selects the live Claude provider (which is
+    the only path that could ever reach the Anthropic API). Every other value -
+    ``"mock"``, ``"heuristic"``, ``""``, a typo - falls back to the deterministic
+    ``MockProvider``. This makes an unattended cloud tick fail safe: it can never
+    accidentally switch to Claude, and a misconfigured env var never crashes it.
+    """
+    normalized = (mode or "mock").strip().lower()
     if normalized == "claude":
         from intelligence.claude import ClaudeProvider
 
         return ClaudeProvider()
-    raise ValueError(f"Unknown intelligence mode: {mode}")
+    if normalized not in {"mock", "heuristic", "deterministic", "off", "none"}:
+        print(f"intelligence: unknown CLAUDE_MODE {mode!r}; using deterministic MockProvider", flush=True)
+    from intelligence.mock import MockProvider
+
+    return MockProvider()
 

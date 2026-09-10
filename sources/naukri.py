@@ -19,6 +19,7 @@ from bs4 import BeautifulSoup
 from orchestrator.models import Job
 
 _NAUKRI_JOB_RE = re.compile(r"naukri\.com/(?:job-listings|jobs|job)", re.IGNORECASE)
+_URL_RE = re.compile(r"https?://[^\s<>\")]+", re.IGNORECASE)
 
 
 def job_from_manual(
@@ -48,7 +49,8 @@ def job_from_manual(
 
 def jobs_from_alert_email(html: str) -> list[Job]:
     """Best-effort extraction of job links + titles from a Naukri alert email."""
-    soup = BeautifulSoup(html or "", "html.parser")
+    content = html or ""
+    soup = BeautifulSoup(content, "html.parser")
     jobs: list[Job] = []
     seen: set[str] = set()
     for tag in soup.find_all("a", href=True):
@@ -73,4 +75,33 @@ def jobs_from_alert_email(html: str) -> list[Job]:
                 raw={"entry": "alert_email"},
             )
         )
+    for href in _URL_RE.findall(content):
+        if not _NAUKRI_JOB_RE.search(href):
+            continue
+        clean = href.split("?")[0].rstrip(".,;]")
+        if clean in seen:
+            continue
+        seen.add(clean)
+        slug = re.sub(r"[^a-z0-9]+", "-", clean.split("naukri.com/")[-1].lower()).strip("-")[:60]
+        jobs.append(
+            Job(
+                source="naukri",
+                source_job_id=slug or f"alert-{len(jobs)}",
+                company="(from Naukri alert - confirm)",
+                title=_title_from_slug(slug) or "Naukri role",
+                url=clean,
+                description="",
+                posted_at=datetime.now(timezone.utc),
+                raw={"entry": "alert_email_text"},
+            )
+        )
     return jobs
+
+
+def _title_from_slug(slug: str) -> str:
+    words = [
+        word
+        for word in slug.split("-")
+        if word not in {"job", "jobs", "listing", "listings", "job-listings"} and not word.isdigit()
+    ]
+    return " ".join(word.capitalize() for word in words[:8])

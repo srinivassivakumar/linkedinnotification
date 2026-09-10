@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import quote_plus
 
 from orchestrator.models import Candidate
 
@@ -119,6 +120,32 @@ def url_button(text: str, url: str) -> dict[str, str]:
     return {"text": text, "url": url}
 
 
+def linkedin_people_search_url(company: str, role: str | None = None) -> str:
+    terms = " ".join(
+        part
+        for part in [
+            company,
+            "recruiter OR talent acquisition OR hiring manager",
+            role or "",
+        ]
+        if part
+    )
+    return f"https://www.linkedin.com/search/results/people/?keywords={quote_plus(terms)}"
+
+
+def gmail_search_url(company: str) -> str:
+    return f"https://mail.google.com/mail/u/0/#search/{quote_plus(company)}"
+
+
+def gmail_compose_url(subject: str, body: str = "", to: str = "") -> str:
+    return (
+        "https://mail.google.com/mail/?view=cm&fs=1"
+        f"&to={quote_plus(to)}"
+        f"&su={quote_plus(subject[:160])}"
+        f"&body={quote_plus(body[:1800])}"
+    )
+
+
 def priority_for_candidate(candidate: Candidate) -> tuple[str, str]:
     intelligence = candidate.intelligence or {}
     priority = str(intelligence.get("priority") or "").upper()
@@ -210,10 +237,98 @@ def inline_buttons(candidate: Candidate) -> dict[str, list[list[dict[str, str]]]
     key = candidate.job_key
     return keyboard(
         [
-            [action("🚀 PREPARE APPLICATION", f"prepare:{key}")],
+            [action("🚀 PREPARE APPLICATION", f"prepare:{key}"), action("📄 UPDATED RESUME", f"resume:{key}")],
             [url_button("🌐 OPEN JOB", candidate.job.url), action("❌ SKIP", f"skip:{key}")],
-            [action("🧠 WHY SCORE?", f"why:{key}"), action("📋 FULL JD", f"jd:{key}")],
-            [action("👥 HUMAN PATH", f"people:{key}")],
+            [action("👥 FIND PEOPLE", f"people:{key}"), action("✉️ EMAIL DRAFT", f"email:{key}")],
+            [action("💬 LINKEDIN DRAFT", f"linkedin:{key}"), action("🧠 WHY SCORE?", f"why:{key}")],
+            [action("📋 FULL JD", f"jd:{key}")],
+        ]
+    )
+
+
+def people_search_card(candidate: Candidate, contacts: list[dict[str, Any]] | None = None) -> str:
+    job = candidate.job
+    lines = [
+        "👥 HUMAN PATH",
+        DIVIDER,
+        "",
+        job.company,
+        job.title,
+        "",
+        "Use these links to find a real person, then send the LinkedIn invite manually.",
+        "When they accept, the Gmail watcher will detect the LinkedIn acceptance email and send a follow-up draft here.",
+    ]
+    if contacts:
+        lines += ["", "Saved contacts:"]
+        for contact in contacts[:5]:
+            label = contact.get("title") or contact.get("role_type") or "contact"
+            lines.append(f"- {contact.get('name')} ({label}) {contact.get('public_profile_url') or ''}")
+    else:
+        hint = (candidate.intelligence or {}).get("human_path_hint") or "Search recruiter, talent partner, hiring manager, or team member."
+        lines += ["", f"Hint: {hint}"]
+    return "\n".join(lines)
+
+
+def people_search_buttons(candidate: Candidate) -> dict[str, list[list[dict[str, str]]]]:
+    key = candidate.job_key
+    return keyboard(
+        [
+            [url_button("👥 LINKEDIN PEOPLE", linkedin_people_search_url(candidate.job.company, candidate.job.title))],
+            [url_button("📬 SEARCH GMAIL", gmail_search_url(candidate.job.company)), url_button("🌐 OPEN JOB", candidate.job.url)],
+            [action("✉️ EMAIL DRAFT", f"email:{key}"), action("💬 LINKEDIN DRAFT", f"linkedin:{key}")],
+            [action("📄 UPDATED RESUME", f"resume:{key}")],
+        ]
+    )
+
+
+def draft_buttons(candidate: Candidate, *, kind: str, draft: str = "") -> dict[str, list[list[dict[str, str]]]]:
+    rows: list[list[dict[str, str]]] = []
+    if kind == "email":
+        rows.append(
+            [
+                url_button(
+                    "✉️ OPEN GMAIL DRAFT",
+                    gmail_compose_url(
+                        f"{candidate.job.title} at {candidate.job.company}",
+                        draft,
+                    ),
+                )
+            ]
+        )
+    else:
+        rows.append([url_button("👥 FIND PERSON ON LINKEDIN", linkedin_people_search_url(candidate.job.company, candidate.job.title))])
+    rows.append([url_button("🌐 OPEN JOB", candidate.job.url), action("👥 FIND PEOPLE", f"people:{candidate.job_key}")])
+    return keyboard(rows)
+
+
+def naukri_card(candidate: Candidate) -> str:
+    job = candidate.job
+    score = candidate.score
+    priority, icon = priority_for_candidate(candidate)
+    terms = ", ".join(score.matched_terms[:6]) or "no deterministic keyword overlap yet"
+    lines = [
+        f"{icon} NAUKRI · {priority} · {score.pre_score}/100",
+        DIVIDER,
+        "",
+        job.company,
+        job.title,
+        f"📍 {job.location or 'location not in alert - confirm on Naukri'}",
+        "",
+        f"Matched: {terms}",
+        "",
+        "Manual only: open the link and apply on Naukri yourself.",
+        "This agent never logs in, applies, or messages on Naukri.",
+    ]
+    if score.warnings:
+        lines += ["", "⚠️ " + "; ".join(score.warnings[:3])]
+    return "\n".join(lines)
+
+
+def naukri_buttons(candidate: Candidate) -> dict[str, list[list[dict[str, str]]]]:
+    return keyboard(
+        [
+            [url_button("🌐 OPEN / APPLY ON NAUKRI", candidate.job.url)],
+            [action("❌ SKIP", f"skip:{candidate.job_key}"), action("🧠 WHY SCORE?", f"why:{candidate.job_key}")],
         ]
     )
 

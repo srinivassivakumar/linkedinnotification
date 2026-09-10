@@ -29,14 +29,15 @@ def load_sources_config(path: Path | None = None) -> dict[str, Any]:
 
 def build_sources(config: dict[str, Any]) -> list[Any]:
     sources_cfg = config.get("sources", {})
+    ats_cfg = sources_cfg.get("ats", sources_cfg)
     output: list[Any] = []
-    greenhouse = sources_cfg.get("greenhouse", {})
+    greenhouse = ats_cfg.get("greenhouse", {})
     if greenhouse.get("enabled", True):
         output.append(GreenhouseSource(greenhouse.get("boards", [])))
-    lever = sources_cfg.get("lever", {})
+    lever = ats_cfg.get("lever", {})
     if lever.get("enabled", True):
         output.append(LeverSource(lever.get("companies", [])))
-    ashby = sources_cfg.get("ashby", {})
+    ashby = ats_cfg.get("ashby", {})
     if ashby.get("enabled", True):
         output.append(AshbySource(ashby.get("companies", [])))
     career_ops = sources_cfg.get("career_ops", {})
@@ -54,7 +55,13 @@ def fetch_all_sources(config: dict[str, Any], limit: int | None = None) -> tuple
                 remaining = max(0, limit - len(raw))
                 jobs = jobs[:remaining]
             raw.extend(jobs)
-            results.append(SourceResult(source=source.name, fetched=len(jobs)))
+            results.append(
+                SourceResult(
+                    source=source.name,
+                    fetched=len(jobs),
+                    errors=list(getattr(source, "errors", [])),
+                )
+            )
         except Exception as exc:
             results.append(SourceResult(source=getattr(source, "name", "unknown"), fetched=0, errors=[str(exc)]))
         if limit is not None and len(raw) >= limit:
@@ -158,7 +165,12 @@ def run_pipeline(
             latest = {candidate.job_key: candidate for candidate in evaluated}
             latest.update(store.load_latest_jobs())
             if prepare_key in latest:
-                path = prepare_application(latest[prepare_key], evidence, store, provider, ROOT / "artifacts" / "generated")
+                # An explicit --job-key request is a manual operator decision; still
+                # blocked for weak jobs inside the factory.
+                path = prepare_application(
+                    latest[prepare_key], evidence, store, provider,
+                    ROOT / "artifacts" / "generated", force=True,
+                )
                 prepared_artifacts.append(str(path))
             else:
                 raise ValueError(f"No stored candidate found for job key: {prepare_key}")

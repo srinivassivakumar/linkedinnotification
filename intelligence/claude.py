@@ -115,6 +115,19 @@ JSON schema (all fields required):
 }
 """
 
+INTERVIEW_SYSTEM = """\
+Help prepare for one interview using only verified evidence and the JD. Return a
+single JSON object, no prose, no fences. Do not invent projects, metrics or
+company facts - if you are not sure about the company, say so in company_brief.
+
+{
+  "company_brief": "<2-3 sentences, or 'NEEDS_CONFIRMATION - research manually'>",
+  "technical_questions": [ "<likely question tied to the JD>" ],
+  "behavioral_prompts": [ "<behavioural question the panel may ask>" ],
+  "notes": "<short prep guidance grounded in the evidence bank>"
+}
+"""
+
 CONNECTION_SYSTEM = """\
 An accepted LinkedIn connection needs a short, honest draft message. Use only the
 connection's headline and OUR open jobs at their company. Return a single JSON
@@ -478,9 +491,32 @@ class ClaudeProvider(IntelligenceProvider):
         }
 
     def prepare_interview(self, application: dict[str, Any]) -> dict[str, Any]:
-        raise NotImplementedError(
-            "prepare_interview is an R4 target (interview mode). Keep CLAUDE_MODE=mock."
+        bank = self._evidence_bank(None)
+        user_content = json.dumps(
+            {
+                "company": application.get("company"),
+                "role": application.get("role"),
+                "jd": application.get("jd", ""),
+                "verified_evidence": _evidence_for_prompt(bank),
+                "profile": _profile_snapshot(),
+            },
+            sort_keys=True,
+            default=str,
         )
+        try:
+            raw = self._call_claude(user_content, system=INTERVIEW_SYSTEM, max_tokens=3000)
+            data = json.loads(_strip_json(raw))
+        except Exception as exc:  # noqa: BLE001 - deterministic scaffold covers this in mock mode
+            return {"status": "error", "provider": "claude", "error": str(exc)}
+        return {
+            "status": "prepared",
+            "provider": "claude",
+            "model": self.model,
+            "company_brief": str(data.get("company_brief", "NEEDS_CONFIRMATION")),
+            "technical_questions": [str(q) for q in data.get("technical_questions", [])],
+            "behavioral_prompts": [str(q) for q in data.get("behavioral_prompts", [])],
+            "notes": str(data.get("notes", "")),
+        }
 
     # -- internals -------------------------------------------------------------
     def _skip_verdict(self, candidate: Candidate, reason: str) -> dict[str, Any]:

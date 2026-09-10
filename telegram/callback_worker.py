@@ -15,18 +15,53 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from application.factory import prepare_application
+from application.factory import NotP0Error, prepare_application
+from application.artifacts import create_artifact_directory
 from intelligence.provider import get_intelligence_provider
 from orchestrator.pipeline import ROOT
 from orchestrator.policies import load_evidence
 from state.store import SqliteStore
 from telegram.bot import TelegramBot
-from telegram.cards import connection_card, url_button, why_score_card
+from telegram.cards import (
+    connection_card,
+    draft_buttons,
+    people_search_buttons,
+    people_search_card,
+    url_button,
+    why_score_card,
+)
 
 
 def _split(data: str) -> tuple[str, str]:
     parts = data.split(":", 1)
     return (parts[0], parts[1] if len(parts) > 1 else "")
+
+
+def _artifact_dir(candidate: Any) -> Any:
+    return create_artifact_directory(candidate.job, ROOT / "artifacts" / "generated")
+
+
+def _ensure_application(candidate: Any, store: SqliteStore, provider: Any) -> Any:
+    path = _artifact_dir(candidate)
+    expected = ["fit_report.md", "evidence_matrix.md", "recruiter_email.txt", "referral_message.txt", "application_notes.md"]
+    if all((path / name).exists() for name in expected):
+        return path
+    return prepare_application(
+        candidate,
+        load_evidence(),
+        store,
+        provider,
+        ROOT / "artifacts" / "generated",
+        force=True,
+    )
+
+
+def _read_artifact(path: Any, name: str, limit: int = 3200) -> str:
+    target = path / name
+    if not target.exists():
+        return f"NEEDS_CONFIRMATION: {name} was not generated."
+    text = target.read_text(encoding="utf-8").strip()
+    return text[:limit] + ("\n\n...[truncated]" if len(text) > limit else "")
 
 
 def handle_callback(
@@ -69,7 +104,7 @@ def handle_callback(
         return "ignored:unknown_conn_action"
 
     # job actions - arg is a job_key which itself contains a colon
-    if action in {"prepare", "skip", "why", "jd", "people"} and arg:
+    if action in {"prepare", "skip", "why", "jd", "people", "resume", "email", "linkedin"} and arg:
         job_key = arg
         latest = store.load_latest_jobs()
         candidate = latest.get(job_key)
@@ -94,26 +129,93 @@ def handle_callback(
         if action == "people":
             bot.answer_callback_query(callback_id)
             contacts = store.contacts_for_company(candidate.job.company)
-            if contacts:
-                lines = [f"👥 {candidate.job.company}", ""]
-                for c in contacts[:5]:
-                    lines.append(f"- {c.get('name')} ({c.get('title') or c.get('role_type')}) {c.get('public_profile_url') or ''}")
-                bot.send_message("\n".join(lines))
-            else:
-                hint = (candidate.intelligence or {}).get("human_path_hint") or "No stored contact yet."
-                bot.send_message(f"👥 {candidate.job.company}\n\nNo saved contact. Hint: {hint}")
+            bot.send_message(people_search_card(candidate, contacts), people_search_buttons(candidate))
             return "people_sent"
-        if action == "prepare":
-            store.set_job_status(job_key, "preparing")
-            bot.answer_callback_query(callback_id, "Preparing application...")
-            path = prepare_application(
-                candidate, load_evidence(), store, provider, ROOT / "artifacts" / "generated"
+        if action in {"resume", "email", "linkedin"}:
+            bot.answer_callback_query(callback_id, "Preparing draft...")
+            try:
+                path = _ensure_application(candidate, store, provider)
+            except NotP0Error as exc:
+                bot.send_message(f"❌ Not preparing: {exc}")
+                return "prepare_refused"
+            if action == "resume":
+                resume = _read_artifact(path, "resume.md")
+                send_document = getattr(bot, "send_document", None)
+                if callable(send_document) and (path / "resume.md").exists():
+                    send_document(path / "resume.md", caption=f"Updated resume draft for {candidate.job.company} - {candidate.job.title}")
+                bot.send_message(
+                    f"📄 UPDATED RESUME DRAFT\n\n{candidate.job.company} · {candidate.job.title}\n\n{resume}\n\nArtifacts: {path}"
+                )
+                return "resume_sent"
+            if action == "email":
+                draft = _read_artifact(path, "recruiter_email.txt")
+                bot.send_message(
+                    f"✉️ RECRUITER EMAIL DRAFT\n\n{candidate.job.company} · {candidate.job.title}\n\n{draft}",
+                    draft_buttons(candidate, kind="email", draft=draft),
+                )
+                return "email_draft_sent"
+            draft = _read_artifact(path, "linkedin_message.txt")
+            if draft.startswith("NEEDS_CONFIRMATION"):
+                draft = _read_artifact(path, "referral_message.txt")
+            bot.send_message(
+                f"💬 LINKEDIN / REFERRAL DRAFT\n\n{candidate.job.company} · {candidate.job.title}\n\n{draft}\n\nSend manually only.",
+                draft_buttons(candidate, kind="linkedin", draft=draft),
             )
+            return "linkedin_draft_sent"
+        if action == "prepare":
+            bot.answer_callback_query(callback_id, "Preparing application...")
+            try:
+                # Pressing PREPARE is an explicit human decision -> allow P1 override,
+                # but the factory still refuses weak jobs.
+                path = _ensure_application(candidate, store, provider)
+            except NotP0Error as exc:
+                bot.send_message(f"❌ Not preparing: {exc}")
+                return "prepare_refused"
+            store.set_job_status(job_key, "preparing")
             store.append_event("application_prepared", job_key, {"artifact_dir": str(path)})
-            bot.send_message(f"📦 Application prepared for {candidate.job.company}\n\nArtifacts: {path}")
+            bot.send_message(
+                f"📦 Application prepared for {candidate.job.company}\n\nArtifacts: {path}",
+                people_search_buttons(candidate),
+            )
             return "prepared"
 
     return "ignored"
+
+
+_OFFSET_KEY = "telegram_callback_offset"
+
+
+def drain_callbacks(
+    bot: TelegramBot,
+    store: SqliteStore,
+    provider: Any,
+    max_updates: int = 100,
+) -> dict[str, Any]:
+    """Process every pending callback once, then return - no long-polling.
+
+    This is what a scheduled / cloud run uses instead of the always-on loop:
+    approvals are handled on the next scheduled tick. The Telegram ``offset`` is
+    persisted in SQLite so nothing is processed twice across runs.
+    """
+    if not bot.configured:
+        return {"status": "skipped", "reason": "telegram not configured", "processed": 0}
+    stored = store.get_runtime(_OFFSET_KEY)
+    offset = int(stored) if stored and stored.lstrip("-").isdigit() else None
+    processed: list[str] = []
+    try:
+        updates = bot.get_updates(offset, timeout=0).get("result", [])
+    except Exception as exc:  # noqa: BLE001
+        return {"status": "error", "error": str(exc), "processed": 0}
+    for update in updates[:max_updates]:
+        new_offset = update["update_id"] + 1
+        callback = update.get("callback_query")
+        if callback:
+            try:
+                processed.append(handle_callback(callback.get("data", ""), callback["id"], bot, store, provider))
+            except Exception as exc:  # noqa: BLE001 - never let one callback break the drain
+                processed.append(f"error:{type(exc).__name__}")
+        store.set_runtime(_OFFSET_KEY, str(new_offset))
+    return {"status": "ok", "processed": len(processed), "results": processed}
 
 
 def main() -> None:

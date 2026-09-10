@@ -55,18 +55,18 @@ interview. Fix anything wrong; set `verified: false` on anything you can't stand
 
 ---
 
-## 5. Run the workers
+## 5. Run it
 
-Two background loops. Run them on your always-on machine (not GitHub Actions —
-the SQLite state can't survive an ephemeral runner).
+**Preferred: cloud, no device online.** See **`CLOUD_SETUP.md`** — push to a
+private GitHub repo, add 5 secrets, and `.github/workflows/agent.yml` runs
+`run_agent.py cloud` every 3 h (scan + Gmail pass + drain Telegram approvals +
+commit state back). Your phone is just the Telegram approval screen.
 
-- **5.1** `python run_agent.py workers` — starts the Gmail watcher + Telegram
-  callback worker together, restarts either if it dies.
-- **5.2** Or individually: `python run_agent.py gmail` and
-  `python run_agent.py telegram`.
-- **5.3** For scheduled scans: **Windows Task Scheduler** → action
-  `E:\sri\X-Pent-Dev\ClaudeJob\.venv\Scripts\python.exe run_agent.py once`
-  every 2–4 hours. (`once` = one scan + one Gmail pass.)
+**Local alternative (laptop stays on):**
+
+- `python run_agent.py workers` — Gmail watcher + Telegram callback worker,
+  supervised (real-time approvals).
+- Or `python run_agent.py once` from Windows Task Scheduler every 2–4 h.
 
 ---
 
@@ -103,10 +103,40 @@ These are **not** wired in. When you want them:
 ## 8. Naukri — what is allowed
 
 - Allowed: forward Naukri job-alert emails to the watched inbox (the watcher
-  parses them, scores them, sends a Telegram card with OPEN/APPLY for **manual**
-  action), or hand a Naukri URL to `sources.naukri.job_from_manual(...)`.
+  parses HTML **and** plain-text links, scores them, sends a Telegram card with
+  an OPEN / APPLY ON NAUKRI link for **manual** action), or run:
+  ```powershell
+  python run_agent.py naukri --url "<naukri job url>" --title "..." --company "..." --location "Pune" --description "<paste JD>" [--dry-run]
+  ```
 - Never: login/browser automation, auto-apply, CAPTCHA handling, bot evasion,
-  automated Naukri messaging. None of that is in the code and it must not be added.
+  automated Naukri messaging, or scraping Naukri pages. None of that is in the
+  code and it must not be added.
+
+---
+
+## 8a. Interview invites and calendar
+
+- When the Gmail watcher classifies a mail as `interview_invite` it:
+  extracts a date/time if the email states one, generates
+  `artifacts/generated/<company>/<role>/interview_prep.md` (company brief marked
+  `NEEDS_CONFIRMATION`, JD→evidence matrix, STAR stories from the evidence bank
+  only, 30-min revision plan, questions to ask, thank-you draft), records an
+  `interview_prep_ready` event, and sends a Telegram card.
+- **Calendar events are never created automatically.** The card tells you a
+  proposal exists; approve it and a Google Calendar event is added via the
+  connector as an explicit step.
+
+---
+
+## 8b. Apify
+
+- `artifacts/apify_actor_review.md` is a **discovery-only** review of candidate
+  actors for Indeed India, Naukri, Foundit, Hirist, Cutshort, Instahyre,
+  Wellfound (sourced from public web search — the Apify plugin was not connected
+  to the session).
+- Before enabling anything: open the actor in the Apify console, verify
+  id/schema/pricing/ToS, run once with `maxItems` 5–10, then pin it. Nothing is
+  scheduled. Naukri and any login-walled portal stay off without explicit approval.
 
 ---
 
@@ -122,6 +152,9 @@ Pressing APPROVE marks it approved — it does **not** send anything.
 ## What is still stubbed (needs a later build, not a manual step)
 
 - `sources/career_ops.py` — disabled boundary (see 7.3).
-- `interview/prep.py` and `ClaudeProvider.prepare_interview` — R4, raise/placeholder.
+- Apify actors — reviewed but not wired in or scheduled (see 8b).
+- Asana / Airtable sync — design only, in `docs/asana_airtable_design.md`; approve
+  one to have it built behind an env flag.
 - Follow-up timing engine (day 0/4/9 cadence) — not built.
 - Human-path research beyond LinkedIn-connection cross-linking — not built.
+- Calendar event creation is deliberately manual/approval-only, not stubbed.

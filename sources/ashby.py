@@ -14,14 +14,18 @@ class AshbySource:
     def __init__(self, companies: list[str], timeout_seconds: int = 15):
         self.companies = companies
         self.timeout_seconds = timeout_seconds
+        self.errors: list[str] = []
 
     def fetch(self) -> list[Job]:
         jobs: list[Job] = []
+        self.errors = []
         for company in self.companies:
             try:
                 jobs.extend(self._fetch_company(company))
-            except requests.RequestException as exc:
-                print(f"ashby:{company}: {exc}", flush=True)
+            except Exception as exc:  # noqa: BLE001 - one bad company must not break the scan
+                message = f"ashby:{company}: {type(exc).__name__}: {exc}"
+                self.errors.append(message)
+                print(message, flush=True)
         return jobs
 
     def _fetch_company(self, company: str) -> list[Job]:
@@ -30,7 +34,13 @@ class AshbySource:
         response.raise_for_status()
         payload = response.json()
         fetched_at = datetime.now(timezone.utc)
-        return [self._map_job(company, item, fetched_at) for item in payload.get("jobs", [])]
+        out: list[Job] = []
+        for item in payload.get("jobs", []):
+            try:
+                out.append(self._map_job(company, item, fetched_at))
+            except Exception as exc:  # noqa: BLE001 - skip a single malformed posting
+                self.errors.append(f"ashby:{company}: skipped 1 posting: {type(exc).__name__}")
+        return out
 
     def _map_job(self, company: str, item: dict[str, Any], fetched_at: datetime) -> Job:
         return Job(

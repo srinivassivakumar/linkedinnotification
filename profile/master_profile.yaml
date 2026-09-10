@@ -7,8 +7,10 @@ links:
   linkedin: "https://www.linkedin.com/in/srinivas-siva"
   github: "https://github.com/srinivassivakumar"
 contact:
-  phone: "+91 9869056567"
-  email: "srinivas123.sivakumar@gmail.com"
+  # Redacted for the public repo. Real values live only in the local .env / your
+  # own copy - the automation never reads these fields.
+  phone: "NEEDS_CONFIRMATION"
+  email: "NEEDS_CONFIRMATION"
 summary: "AI/ML and Data Engineer building production-focused AI agents, multimodal and computer-vision systems, predictive models, and cloud/data infrastructure across manufacturing, networking, conservation, and fashion."
 skills:
   languages:
