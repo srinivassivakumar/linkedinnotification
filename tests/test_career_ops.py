@@ -108,6 +108,75 @@ def test_monthly_cost_cap_stops_further_searches(tmp_path):
     assert any("cost cap" in e for e in src.errors)
 
 
+MUH_ITEMS = [
+    {
+        "jobId": "110926000001",
+        "title": "AI / Machine Learning Engineer",
+        "companyName": "Acme Labs",
+        "location": "Hybrid - Hyderabad, Bengaluru",
+        "jobDescription": "<p>Strong <strong>Python</strong> &amp; PyTorch. Build <br/>LLM pipelines.</p>",
+        "createdDate": "2026-09-10 18:30:07",
+        "experienceText": "3-8 Yrs",
+        "minimumExperience": 3,
+        "maximumExperience": 8,
+        "salary": "8-18 Lacs PA",
+        "footerPlaceholderLabel": "Just Now",
+    }
+]
+
+
+def _muh_config(**over):
+    cfg = {
+        "enabled": True,
+        "monthly_cost_cap_usd": 4.0,
+        "actors": [
+            {
+                "id": "muhammetakkurtt~naukri-job-scraper",
+                "adapter": "naukri_muhammetakkurtt",
+                "source": "naukri",
+                "max_charge_usd": 1.0,
+                "est_charge_per_run_usd": 0.35,
+                "input": {"maxJobs": 50},
+                "searches": [{"keyword": "AI Engineer"}],
+            }
+        ],
+    }
+    cfg.update(over)
+    return cfg
+
+
+def test_muhammetakkurtt_adapter_maps_url_date_and_strips_html(tmp_path):
+    session = FakeSession([MUH_ITEMS])
+    src = CareerOpsSource(_muh_config(), token="tok", session=session, store=SqliteStore(tmp_path / "s.db"))
+    jobs = src.fetch()
+
+    assert len(jobs) == 1
+    job = jobs[0]
+    assert job.canonical_key == "naukri:110926000001"
+    assert job.url == "https://www.naukri.com/job-listings-110926000001"
+    assert job.posted_at is not None and job.posted_at.year == 2026
+    assert "<" not in job.description and "Python" in job.description
+    assert job.raw["experience"] == "3-8 Yrs"
+    # pay-per-event: maxTotalChargeUsd, not maxItems
+    assert session.calls[0]["params"]["maxTotalChargeUsd"] == 1.0
+    assert "maxItems" not in session.calls[0]["params"]
+    assert session.calls[0]["json"]["maxJobs"] == 50
+    assert session.calls[0]["json"]["keyword"] == "AI Engineer"
+
+
+def test_min_interval_blocks_a_second_run(tmp_path):
+    store = SqliteStore(tmp_path / "s.db")
+    cfg = _muh_config()
+    cfg["actors"][0]["min_interval_hours"] = 48
+
+    src1 = CareerOpsSource(cfg, token="tok", session=FakeSession([MUH_ITEMS]), store=store)
+    assert len(src1.fetch()) == 1
+
+    src2 = CareerOpsSource(cfg, token="tok", session=FakeSession([MUH_ITEMS]), store=store)
+    assert src2.fetch() == []
+    assert any("min_interval" in e for e in src2.errors)
+
+
 def test_spend_is_tracked_across_runs(tmp_path):
     store = SqliteStore(tmp_path / "s.db")
     session = FakeSession([NAUKRI_ITEMS, NAUKRI_ITEMS])

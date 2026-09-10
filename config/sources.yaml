@@ -52,32 +52,42 @@ sources:
   career_ops:
     # Option B: pinned Apify actors called over the REST API and fed into the
     # same pipeline as the ATS sources. Needs APIFY_TOKEN in the environment.
-    # Flip `enabled: true` only when you have accepted the actor's ToS / cost.
-    enabled: false
-    monthly_cost_cap_usd: 15
-    timeout_seconds: 240
-    notes: "Apify actors are pinned by id. Nothing is auto-selected. maxItems + monthly_cost_cap_usd bound the spend."
+    # ON as of 2026-09-11.
+    #
+    # Free Apify plan = ~$5/month credit. The Naukri actor charges ~$0.26 per run
+    # (50 jobs). min_interval_hours keeps it to one run per interval no matter how
+    # often `live` scans; monthly_cost_cap_usd is the backstop.
+    enabled: true
+    monthly_cost_cap_usd: 4.0
+    timeout_seconds: 300
+    notes: "Actors pinned by id. min_interval_hours + monthly_cost_cap_usd bound the spend."
     actors:
-      - id: fervent_bus~naukri-job-scraper-mcp
-        adapter: naukri
+      - id: muhammetakkurtt~naukri-job-scraper
+        adapter: naukri_muhammetakkurtt
         source: naukri
         enabled: true
-        price_per_1000_usd: 5.0     # "$5.00 / 1,000 results", pay-per-event (verify in console)
-        max_items: 25               # hard cap per search, also sent as ?maxItems=
+        min_interval_hours: 48        # at most one Naukri run every 2 days
+        max_charge_usd: 1.0           # -> ?maxTotalChargeUsd (actor minimum is $0.50)
+        est_charge_per_run_usd: 0.35  # observed ~$0.26 for maxJobs=50; headroom
         input:
-          maxResults: 25
+          maxJobs: 50                 # actor minimum is 50
+          freshness: "15"             # Naukri "last 15 days"
+          sortBy: date
         searches:
-          - { searchQuery: "AI Engineer", location: "" }
-          - { searchQuery: "Machine Learning Engineer", location: "" }
-          - { searchQuery: "Data Engineer", location: "" }
-          - { searchQuery: "LLM Engineer", location: "" }
+          - { keyword: "AI Engineer" }
+          # widen once the data looks right (each keyword = another ~$0.3 run):
+          # - { keyword: "Machine Learning Engineer" }
+          # - { keyword: "Data Engineer" }
+      # ---- broken, kept for reference: fervent_bus~naukri-job-scraper-mcp
+      #      runs OK but its Naukri parser returns 0 jobs (site changed).
+      #
       # Add a pinned LinkedIn actor here once reviewed, e.g.:
       # - id: bebity~linkedin-jobs-scraper
       #   adapter: generic
       #   source: linkedin
       #   enabled: false
-      #   price_per_1000_usd: 5.0
-      #   max_items: 25
+      #   min_interval_hours: 24
+      #   max_charge_usd: 1.0
       #   searches:
       #     - { title: "AI Engineer", location: "India", rows: 25 }
   search_platforms:
