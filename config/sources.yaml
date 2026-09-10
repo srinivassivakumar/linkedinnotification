@@ -10,7 +10,117 @@ sources:
     companies: []
   career_ops:
     enabled: false
+    notes: "Enable after Career Ops/Apify connector path is reviewed and pinned."
+  search_platforms:
+    enabled: false
+    mode: "connector_or_manual_export"
+    notes:
+      - "These are target platforms for Career Ops, Apify, browser automation, or manual CSV/export import."
+      - "The current Python scanner does not scrape these platforms directly."
+      - "Keep LinkedIn actions manual unless a compliant connector is explicitly approved."
+    target_roles:
+      - "AI Engineer"
+      - "AI/ML Engineer"
+      - "Machine Learning Engineer"
+      - "Data Engineer"
+      - "MLOps Engineer"
+      - "LLM Engineer"
+      - "RAG Engineer"
+      - "Computer Vision Engineer"
+      - "Data Scientist"
+      - "Analytics Engineer"
+    locations:
+      - "India"
+      - "Remote India"
+      - "Pune"
+      - "Bengaluru"
+      - "Hyderabad"
+      - "Mumbai"
+      - "Delhi NCR"
+      - "Gurgaon"
+      - "Noida"
+      - "Chennai"
+    platforms:
+      - name: "LinkedIn Jobs"
+        priority: "p0"
+        url: "https://www.linkedin.com/jobs/"
+        connector_needed: true
+        purpose: "Recruiter reach, referrals, direct company posts, and professional networking."
+      - name: "Naukri"
+        priority: "p0"
+        url: "https://www.naukri.com/"
+        connector_needed: true
+        purpose: "High-volume Indian recruiter postings and traditional IT hiring."
+      - name: "Indeed India"
+        priority: "p0"
+        url: "https://in.indeed.com/"
+        connector_needed: true
+        purpose: "Broad Indian job discovery across company and recruiter listings."
+      - name: "Glassdoor India"
+        priority: "p1"
+        url: "https://www.glassdoor.co.in/"
+        connector_needed: true
+        purpose: "Company research, salary context, and additional job listings."
+      - name: "Foundit"
+        priority: "p1"
+        url: "https://www.foundit.in/"
+        connector_needed: true
+        purpose: "IT, tech, and mid-market recruiter postings in India."
+      - name: "Instahyre"
+        priority: "p1"
+        url: "https://www.instahyre.com/"
+        connector_needed: true
+        purpose: "Curated technology and product roles from Indian companies and startups."
+      - name: "Cutshort"
+        priority: "p1"
+        url: "https://cutshort.io/"
+        connector_needed: true
+        purpose: "Startup, product, AI, and engineering roles in India."
+      - name: "Wellfound"
+        priority: "p1"
+        url: "https://wellfound.com/jobs"
+        connector_needed: true
+        purpose: "Startup and remote-friendly AI/data engineering jobs."
+      - name: "Hirist"
+        priority: "p1"
+        url: "https://www.hirist.tech/"
+        connector_needed: true
+        purpose: "Developer, data, cloud, and IT-specialist roles."
+      - name: "IIMJobs"
+        priority: "p2"
+        url: "https://www.iimjobs.com/"
+        connector_needed: true
+        purpose: "Analytics, product analytics, strategy, and specialist data roles."
+      - name: "Shine"
+        priority: "p2"
+        url: "https://www.shine.com/"
+        connector_needed: true
+        purpose: "Additional Indian recruiter volume."
+      - name: "TimesJobs"
+        priority: "p2"
+        url: "https://www.timesjobs.com/"
+        connector_needed: true
+        purpose: "Additional IT and recruiter postings in India."
+      - name: "Internshala"
+        priority: "p2"
+        url: "https://internshala.com/jobs/"
+        connector_needed: true
+        purpose: "Entry-level and early-career roles; useful selectively for 1-3 year openings."
+      - name: "Apna"
+        priority: "p2"
+        url: "https://apna.co/jobs"
+        connector_needed: true
+        purpose: "Supplemental India job-board coverage."
+      - name: "National Career Service"
+        priority: "p2"
+        url: "https://www.ncs.gov.in/"
+        connector_needed: true
+        purpose: "Government-backed job discovery for India."
+      - name: "Freshersworld"
+        priority: "p3"
+        url: "https://www.freshersworld.com/"
+        connector_needed: true
+        purpose: "Early-career fallback; use only when 1-3 year filters are available."
   live_check:
     enabled: false
     timeout_seconds: 8
-

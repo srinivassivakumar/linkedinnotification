@@ -1,11 +1,166 @@
 evidence:
-  - id: example_project
-    type: project
-    title: "Replace with a real project"
+  - id: manufacturing_ai_agent
+    type: experience
+    title: "Manufacturing AI agent at Mexo"
     claims:
-      - "Replace with a verified statement"
-    technologies: []
+      - "Built a manufacturing AI agent to analyze production progress, machine capacity, downtime, and operational dependencies."
+      - "Surfaced delivery risks with evidence-backed explanations."
+    technologies:
+      - TypeScript
+      - Flue
+      - OpenRouter
+      - PostgreSQL
+      - LLMs
+    metrics:
+      - "Early engineering hire on a two-person startup team"
+    source: "SrinivasSivakumar_Resume.pdf"
+    verified: true
+  - id: aws_backup_infrastructure
+    type: experience
+    title: "Terraform-managed AWS S3 backup infrastructure"
+    claims:
+      - "Built Terraform-managed Amazon S3 backup infrastructure."
+      - "Migrated database backups and historical data into centralized object storage."
+    technologies:
+      - AWS
+      - S3
+      - Terraform
+      - PostgreSQL
     metrics: []
-    source: "resume/project notes"
-    verified: false
-
+    source: "SrinivasSivakumar_Resume.pdf"
+    verified: true
+  - id: bandwidth_prediction_rca
+    type: experience
+    title: "AI bandwidth prediction and RCA workflow at Zybasis"
+    claims:
+      - "Developed AI bandwidth-prediction and network anomaly-detection workflows using Python and CheckMK telemetry."
+      - "Built deterministic and LLM-assisted root-cause-analysis workflows using runbook pattern matching and fault-domain classification."
+    technologies:
+      - Python
+      - CheckMK
+      - Claude API
+      - LLMs
+      - Anomaly Detection
+    metrics: []
+    source: "SrinivasSivakumar_Resume.pdf"
+    verified: true
+  - id: multimodal_fashion_assistant
+    type: project
+    title: "Multimodal AI fashion assistant for MyMirro"
+    claims:
+      - "Built an end-to-end multimodal AI fashion assistant for wardrobe digitization, outfit generation, styling recommendations, and personalized shopping recommendations."
+      - "Developed computer vision and RAG pipelines to understand garments, retrieve fashion knowledge, and generate context-aware recommendations."
+    technologies:
+      - Gemini API
+      - FashionCLIP
+      - CLIP
+      - FAISS
+      - SegFormer
+      - SAM
+      - RAG
+      - Computer Vision
+    metrics: []
+    source: "SrinivasSivakumar_Resume.pdf"
+    verified: true
+  - id: fashion_platform_deployment
+    type: project
+    title: "FastAPI/MLflow/Docker deployment for MyMirro"
+    claims:
+      - "Engineered and deployed the fashion assistant platform using FastAPI, MLflow, Docker, Terraform, and Railway."
+      - "Built Python and TypeScript data pipelines with Playwright and Puppeteer."
+    technologies:
+      - FastAPI
+      - MLflow
+      - Docker
+      - Terraform
+      - Railway
+      - Python
+      - TypeScript
+      - Playwright
+      - Puppeteer
+    metrics:
+      - "Aggregated 1,000+ fashion products per run from 10+ e-commerce websites"
+    source: "SrinivasSivakumar_Resume.pdf"
+    verified: true
+  - id: wildlife_data_pipelines
+    type: experience
+    title: "Wildlife Conservation Trust data engineering"
+    claims:
+      - "Deployed and maintained RStudio Shiny servers with CI/CD automation."
+      - "Built AWS-based pipelines for real-time sensor-data processing and delivery."
+    technologies:
+      - AWS
+      - S3
+      - Lambda
+      - Airflow
+      - Snowflake
+      - Jenkins
+      - Dagster
+    metrics: []
+    source: "SrinivasSivakumar_Resume.pdf"
+    verified: true
+  - id: wildlife_computer_vision_tracking
+    type: experience
+    title: "Wildlife computer vision and 3D tracking systems"
+    claims:
+      - "Developed image-recognition systems with automated training and reporting pipelines for identifying individual crocodiles."
+      - "Created a GPS-free 3D tracking prototype for underwater Gangetic dolphins."
+    technologies:
+      - Python
+      - Computer Vision
+      - AWS EC2
+      - OpenStack
+    metrics: []
+    source: "SrinivasSivakumar_Resume.pdf"
+    verified: true
+  - id: ncbs_data_platform
+    type: experience
+    title: "NCBS data and cloud platform work"
+    claims:
+      - "Deployed Ceph using Docker with automated backup pipelines integrated into OpenStack."
+      - "Built PySpark ETL pipelines using Databricks, Airflow, Snowflake, and Dagster."
+      - "Deployed GitLab on OpenStack with automated backup and access-control systems."
+    technologies:
+      - Ceph
+      - Docker
+      - OpenStack
+      - PySpark
+      - Databricks
+      - Airflow
+      - Snowflake
+      - Dagster
+      - GitLab
+    metrics: []
+    source: "SrinivasSivakumar_Resume.pdf"
+    verified: true
+  - id: xpent_architecture
+    type: project
+    title: "X-Pent provider-neutral local/cloud architecture"
+    claims:
+      - "Designed provider-neutral Docker Compose architecture for local and cloud-portable X-Pent deployments."
+      - "Used PostgreSQL with pgvector, Redis, MinIO/S3-compatible storage, RAG service skeleton, and policy-based AI routing."
+    technologies:
+      - Docker
+      - PostgreSQL
+      - pgvector
+      - Redis
+      - MinIO
+      - RAG
+      - AI routing
+    metrics: []
+    source: "Portfolio and resume notes"
+    verified: true
+  - id: pulmonary_fibrosis_prediction
+    type: project
+    title: "Pulmonary fibrosis progression prediction"
+    claims:
+      - "Built a TensorFlow/Keras model combining chest CT DICOM images with age, sex, and smoking metadata to predict FVC decline."
+    technologies:
+      - TensorFlow
+      - Keras
+      - DICOM
+      - Computer Vision
+      - Deep Learning
+    metrics: []
+    source: "SrinivasSivakumar_Resume.pdf"
+    verified: true

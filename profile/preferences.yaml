@@ -1,22 +1,39 @@
 role_families:
+  - ai engineer
+  - ai/ml engineer
+  - machine learning engineer
+  - ml engineer
+  - data engineer
+  - mlops
+  - llm engineer
+  - rag engineer
+  - computer vision engineer
+  - backend data engineer
+  - python engineer
+  - applied ai engineer
+  - data scientist
+  - analytics engineer
+  - cloud data engineer
   - devops
   - cloud
   - platform
-  - sre
-  - mlops
-  - infrastructure
-
 locations:
   preferred:
     - Pune
     - Bengaluru
+    - Hyderabad
+    - Mumbai
+    - Chennai
+    - Delhi NCR
+    - Gurgaon
+    - Noida
     - Remote India
   allowed_country:
     - India
-
 seniority:
-  min_years: 0
-  max_years: 3
+  min_years: 1
+  max_years: 4
+  target_years: 3
   reject_titles:
     - Staff
     - Principal
@@ -24,31 +41,55 @@ seniority:
     - Head of
     - VP
     - Vice President
-
+    - Architect
+    - Engineering Manager
 freshness:
   max_age_hours: 168
   strong_age_hours: 24
-
 keywords:
   strong:
     - Python
-    - Linux
+    - Machine Learning
+    - AI
+    - LLM
+    - RAG
+    - Data Engineering
+    - MLOps
+    - FastAPI
+    - PostgreSQL
+    - AWS
     - Docker
     - Kubernetes
-    - Git
-    - CI/CD
+    - PyTorch
+    - TensorFlow
+    - Apache Spark
+    - Airflow
+    - Snowflake
   useful:
+    - Hugging Face
+    - FAISS
+    - CLIP
+    - Computer Vision
+    - MLflow
     - Terraform
-    - AWS
-    - GCP
-    - Azure
-    - Ansible
-    - Ceph
-
+    - Dagster
+    - OpenStack
+    - GitLab CI/CD
+    - Jenkins
+    - TypeScript
+    - SQL
+    - Bash
+    - Lambda
+    - Databricks
+avoid_keywords:
+  - sales only
+  - support only
+  - non technical recruiter
+  - unpaid internship
+  - bpo voice process
 scoring:
   strong_candidate: 68
   review: 55
   p0: 85
   p1: 80
   p2: 65
-

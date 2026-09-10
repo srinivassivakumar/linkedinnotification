@@ -7,7 +7,7 @@ import requests
 from dotenv import load_dotenv
 
 from orchestrator.models import Candidate
-from telegram.cards import candidate_card, inline_buttons
+from telegram.cards import candidate_card, demo_dashboard_messages, inline_buttons
 
 
 class TelegramBot:
@@ -23,9 +23,13 @@ class TelegramBot:
 
     def send_message(self, text: str, reply_markup: dict[str, Any] | None = None) -> dict[str, Any]:
         if not self.configured:
-            return {"ok": False, "skipped": True, "reason": "Telegram is not configured"}
+            return {"ok": False, "skipped": True, "reason": "Telegram not configured"}
         url = f"https://api.telegram.org/bot{self.token}/sendMessage"
-        payload: dict[str, Any] = {"chat_id": self.chat_id, "text": text, "disable_web_page_preview": True}
+        payload: dict[str, Any] = {
+            "chat_id": self.chat_id,
+            "text": text,
+            "disable_web_page_preview": True,
+        }
         if reply_markup:
             payload["reply_markup"] = reply_markup
         response = requests.post(url, json=payload, timeout=self.timeout_seconds)
@@ -42,6 +46,13 @@ class TelegramBot:
                 sent.append(candidate.job_key)
         return sent
 
-    def notify_test(self) -> dict[str, Any]:
-        return self.send_message("Career Agent notify-test: Telegram is configured and reachable.")
+    def send_dashboard_preview(self, candidates: list[Candidate]) -> list[str]:
+        sent: list[str] = []
+        for index, (text, reply_markup) in enumerate(demo_dashboard_messages(candidates), start=1):
+            result = self.send_message(text, reply_markup)
+            if result.get("ok"):
+                sent.append(f"dashboard:{index}")
+        return sent
 
+    def notify_test(self) -> dict[str, Any]:
+        return self.send_message("Career Agent notify-test: Telegram configured reachable.")

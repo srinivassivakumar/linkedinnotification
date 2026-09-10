@@ -9,6 +9,8 @@ spine from `builmanual.pdf`.
 - Deterministic pre-score with explainable signal breakdown.
 - JSONL state and `seen_jobs.json` for idempotent runs.
 - Telegram message sender and candidate cards.
+- Telegram operations-console cards for home, job queue, focus, today, human path,
+  application state, interview, follow-up, and settings views.
 - Mock intelligence provider for end-to-end testing before Claude Pro.
 - Application artifact skeleton behind a manual PREPARE action.
 - Gmail reply classifier skeleton.
@@ -34,6 +36,7 @@ python -m orchestrator.main --mode fetch-only --limit 20
 python -m orchestrator.main --mode scan --dry-run --fixture tests/fixtures/golden_jobs.json
 python -m orchestrator.main --mode scan --fixture tests/fixtures/golden_jobs.json
 python -m orchestrator.main --mode notify-test
+python -m orchestrator.main --mode dashboard-test --fixture tests/fixtures/golden_jobs.json
 python -m orchestrator.main --mode prepare --job-key fixture:perfect-junior
 pytest -q
 ```
@@ -41,4 +44,3 @@ pytest -q
 ## Current Boundary
 Claude, Career Ops, Apify, Gmail sending and LinkedIn actions are not faked.
 Those are connector/setup tasks documented in `CLAUDE.md`.
-

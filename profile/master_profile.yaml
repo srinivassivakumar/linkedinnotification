@@ -1,11 +1,114 @@
 name: Srinivas Sivakumar
-headline: ""
-location: ""
-experience_years: null
-
-skills: []
-projects: []
-experience: []
-education: []
-certifications: []
-
+headline: "AI/ML Engineer | Data Engineer | MLOps/DevOps"
+location: "India"
+experience_years: 3
+links:
+  portfolio: "https://srinivassivakumar.github.io/"
+  linkedin: "https://www.linkedin.com/in/srinivas-siva"
+  github: "https://github.com/srinivassivakumar"
+contact:
+  phone: "+91 9869056567"
+  email: "srinivas123.sivakumar@gmail.com"
+summary: "AI/ML and Data Engineer building production-focused AI agents, multimodal and computer-vision systems, predictive models, and cloud/data infrastructure across manufacturing, networking, conservation, and fashion."
+skills:
+  languages:
+    - Python
+    - SQL
+    - TypeScript
+    - Bash
+  ai_ml:
+    - PyTorch
+    - TensorFlow
+    - Hugging Face
+    - LLMs
+    - RAG
+    - FAISS
+    - CLIP
+    - Computer Vision
+    - Diffusion Models
+    - MLflow
+  backend_data:
+    - FastAPI
+    - PostgreSQL
+    - Apache Spark
+    - Snowflake
+    - Airflow
+    - Dagster
+  cloud_devops:
+    - AWS
+    - Docker
+    - Kubernetes
+    - Terraform
+    - Jenkins
+    - GitLab CI/CD
+    - Railway
+    - OpenStack
+    - Linux
+experience:
+  - company: "Mexo"
+    title: "AI Software Engineer"
+    type: "Very early-stage startup"
+    start: "2026-06"
+    end: "2026-08"
+    highlights:
+      - "Early engineering hire on a two-person team."
+      - "Built a manufacturing AI agent using TypeScript, Flue, OpenRouter, and PostgreSQL to analyze production progress, machine capacity, downtime, and operational dependencies."
+      - "Built Terraform-managed AWS S3 backup infrastructure and migrated database backups and historical data into centralized object storage."
+  - company: "Zybasis"
+    title: "R&D Engineer (AI)"
+    start: "2025-12"
+    end: "2026-05"
+    highlights:
+      - "Developed AI bandwidth-prediction and network anomaly-detection workflows using Python and CheckMK telemetry."
+      - "Built deterministic and LLM-assisted root-cause-analysis workflows with runbook matching, fault-domain classification, and Claude API fallback."
+      - "Engineered data pipelines integrating CheckMK and infrastructure sources for anomaly detection."
+  - company: "MyMirro"
+    title: "AI/ML Engineer"
+    type: "Paid freelance engagement"
+    start: "2025-09"
+    end: "2025-11"
+    highlights:
+      - "Built an end-to-end multimodal AI fashion assistant for wardrobe digitization, outfit generation, styling recommendations, and personalized shopping recommendations."
+      - "Developed computer vision and RAG pipelines with Gemini API, FashionCLIP, CLIP, FAISS, SegFormer, and SAM."
+      - "Deployed with FastAPI, MLflow, Docker, Terraform, and Railway, with Python and TypeScript scraping pipelines aggregating 1,000+ products per run from 10+ e-commerce websites."
+  - company: "Wildlife Conservation Trust"
+    title: "Data Engineer"
+    start: "2024"
+    end: "2025"
+    highlights:
+      - "Deployed and maintained RStudio Shiny servers with CI/CD automation using Jenkins, Airflow, and Dagster."
+      - "Built AWS-based pipelines with S3, Lambda, Airflow, and Snowflake for real-time sensor-data processing."
+      - "Developed image-recognition and automated reporting pipelines for crocodile identification."
+      - "Created a GPS-free 3D tracking prototype using Python, AWS EC2, and a hybrid OpenStack deployment."
+  - company: "NCBS (TIFR)"
+    title: "Data Engineering Intern"
+    start: "2023"
+    end: "2024"
+    highlights:
+      - "Deployed Ceph using Docker with automated backup pipelines integrated into OpenStack."
+      - "Built PySpark ETL pipelines using Databricks, Airflow, Snowflake, and Dagster."
+      - "Deployed GitLab on OpenStack with automated backup and access-control systems."
+projects:
+  - title: "X-Pent Architecture"
+    year: 2026
+    highlights:
+      - "Designed provider-neutral Docker Compose architecture for local and cloud-portable X-Pent deployments."
+      - "Used PostgreSQL with pgvector, Redis, MinIO/S3-compatible storage, RAG service skeleton, and policy-based AI routing."
+  - title: "Microscopy Nuclei Detection"
+    highlights:
+      - "Built Python/scikit-image pipeline using Gaussian smoothing, Otsu thresholding, morphology, and region-property filters."
+  - title: "Pulmonary Fibrosis Progression Prediction"
+    highlights:
+      - "Built TensorFlow/Keras model combining chest CT DICOM images with age, sex, and smoking metadata to predict FVC decline."
+education:
+  - degree: "MCA, Storage and Cloud Computing"
+    institution: "Jain University"
+    years: "2022-2024"
+  - degree: "BCA, Computer Applications"
+    institution: "Indira College, Pune University"
+    years: "2019-2022"
+certifications:
+  - "Cloud Big Data Engineering, TrendyTech Insights"
+  - "Linux Administration, Besant Technologies"
+patents:
+  - "Design patent: light-based automatic feeder for aquarium fish"
