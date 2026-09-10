@@ -95,13 +95,19 @@ class TelegramBot:
         response.raise_for_status()
         return response.json()
 
+    def _try_send(self, text: str, markup: dict[str, Any] | None) -> dict[str, Any]:
+        try:
+            return self.send_message(text, markup)
+        except Exception as exc:  # noqa: BLE001 - one failed card must not abort a run
+            print(f"telegram send failed: {type(exc).__name__}: {exc}", flush=True)
+            return {"ok": False, "error": str(exc)}
+
     def send_candidates(self, candidates: list[Candidate]) -> list[str]:
         sent: list[str] = []
         for candidate in candidates:
             if candidate.score.bucket == "weak":
                 continue
-            result = self.send_message(candidate_card(candidate), inline_buttons(candidate))
-            if result.get("ok"):
+            if self._try_send(candidate_card(candidate), inline_buttons(candidate)).get("ok"):
                 sent.append(candidate.job_key)
         return sent
 
@@ -111,8 +117,7 @@ class TelegramBot:
         for candidate in candidates:
             if candidate.score.bucket == "weak":
                 continue
-            result = self.send_message(naukri_card(candidate), naukri_buttons(candidate))
-            if result.get("ok"):
+            if self._try_send(naukri_card(candidate), naukri_buttons(candidate)).get("ok"):
                 sent.append(candidate.job_key)
         return sent
 

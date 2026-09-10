@@ -72,15 +72,33 @@ def _run_cloud(args: argparse.Namespace) -> None:
     store = SqliteStore(ROOT / "state")
     provider = get_intelligence_provider(os.getenv("CLAUDE_MODE", "mock"))
 
-    scan = run_pipeline(mode="scan", dry_run=False, limit=args.limit, notifier=bot, store=store)
-    gmail = gmail_run_once()
-    approvals = drain_callbacks(bot, store, provider)
+    def _phase(name, fn, default):
+        try:
+            return fn()
+        except Exception as exc:  # noqa: BLE001 - a failing phase must not lose the others or state
+            print(f"phase {name} failed: {type(exc).__name__}: {exc}", flush=True)
+            return {"error": f"{type(exc).__name__}: {exc}", **default}
+
+    scan_error = None
+    try:
+        scan = run_pipeline(mode="scan", dry_run=False, limit=args.limit, notifier=bot, store=store)
+        scan_counts = scan.counts
+        scan_source_errors = [r.model_dump() for r in scan.source_results if r.errors]
+        notified_count = len(scan.notified)
+    except Exception as exc:  # noqa: BLE001
+        print(f"phase scan failed: {type(exc).__name__}: {exc}", flush=True)
+        scan_error = f"{type(exc).__name__}: {exc}"
+        scan_counts, scan_source_errors, notified_count = {}, [], 0
+
+    gmail = _phase("gmail", gmail_run_once, {"status": "error"})
+    approvals = _phase("telegram", lambda: drain_callbacks(bot, store, provider), {"status": "error", "processed": 0})
 
     summary = {
         "claude_mode": os.getenv("CLAUDE_MODE", "mock"),
-        "scan_counts": scan.counts,
-        "scan_source_errors": [r.model_dump() for r in scan.source_results if r.errors],
-        "notified": scan.notified,
+        "scan_error": scan_error,
+        "scan_counts": scan_counts,
+        "scan_source_errors": scan_source_errors,
+        "notified_count": notified_count,
         "gmail": gmail,
         "telegram_approvals": approvals,
     }
