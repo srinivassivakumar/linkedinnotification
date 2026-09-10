@@ -50,8 +50,36 @@ sources:
     shine:
       enabled: false
   career_ops:
+    # Option B: pinned Apify actors called over the REST API and fed into the
+    # same pipeline as the ATS sources. Needs APIFY_TOKEN in the environment.
+    # Flip `enabled: true` only when you have accepted the actor's ToS / cost.
     enabled: false
-    notes: "Enable after Career Ops/Apify connector path is reviewed and pinned."
+    monthly_cost_cap_usd: 15
+    timeout_seconds: 240
+    notes: "Apify actors are pinned by id. Nothing is auto-selected. maxItems + monthly_cost_cap_usd bound the spend."
+    actors:
+      - id: fervent_bus~naukri-job-scraper-mcp
+        adapter: naukri
+        source: naukri
+        enabled: true
+        price_per_1000_usd: 5.0     # "$5.00 / 1,000 results", pay-per-event (verify in console)
+        max_items: 25               # hard cap per search, also sent as ?maxItems=
+        input:
+          maxResults: 25
+        searches:
+          - { searchQuery: "AI Engineer", location: "" }
+          - { searchQuery: "Machine Learning Engineer", location: "" }
+          - { searchQuery: "Data Engineer", location: "" }
+          - { searchQuery: "LLM Engineer", location: "" }
+      # Add a pinned LinkedIn actor here once reviewed, e.g.:
+      # - id: bebity~linkedin-jobs-scraper
+      #   adapter: generic
+      #   source: linkedin
+      #   enabled: false
+      #   price_per_1000_usd: 5.0
+      #   max_items: 25
+      #   searches:
+      #     - { title: "AI Engineer", location: "India", rows: 25 }
   search_platforms:
     enabled: false
     mode: "connector_or_manual_export"

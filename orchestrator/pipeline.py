@@ -41,7 +41,7 @@ def build_sources(config: dict[str, Any]) -> list[Any]:
     if ashby.get("enabled", True):
         output.append(AshbySource(ashby.get("companies", [])))
     career_ops = sources_cfg.get("career_ops", {})
-    output.append(CareerOpsSource(enabled=bool(career_ops.get("enabled", False))))
+    output.append(CareerOpsSource(career_ops))
     return output
 
 

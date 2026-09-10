@@ -8,6 +8,10 @@ python run_agent.py live
 
 ## What it does
 
+Job sources: the Greenhouse / Lever / Ashby company boards in
+`config/sources.yaml`, plus pinned Apify actors (Naukri, and LinkedIn once added)
+when `sources.career_ops.enabled` is true — see `docs/CAREER_OPS_APIFY.md`.
+
 1. **Startup scan, immediately.** The first time this machine's state database
    ever completes a scan it looks back **7 days**; every scan after that looks
    back **12 hours** (`--first-window-days`, `--scan-window-hours`).
