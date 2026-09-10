@@ -29,6 +29,22 @@ sources:
         - perplexity
         - snowflake
         - zapier
+    workday:
+      # Free, official Workday CXS JSON API. host/tenant/site come from the
+      # careers URL: https://{tenant}.wdN.myworkdayjobs.com/en-US/{site}
+      enabled: true
+      per_company_limit: 20
+      companies:
+        - { name: NVIDIA, host: nvidia.wd5.myworkdayjobs.com, tenant: nvidia, site: NVIDIAExternalCareerSite, search_text: "engineer india" }
+        - { name: Citi, host: citi.wd5.myworkdayjobs.com, tenant: citi, site: "2", search_text: "machine learning india" }
+        # add more: Salesforce, Adobe, SAP, Wipro, Cognizant, Accenture ...
+    smartrecruiters:
+      # Free, official postings API. Identifier = careers.smartrecruiters.com/{id}
+      enabled: true
+      fetch_details: true
+      companies: []
+        # e.g. - Bosch
+        #      - Square
   portals:
     linkedin:
       enabled: true
@@ -49,6 +65,26 @@ sources:
       enabled: true
     shine:
       enabled: false
+  hackernews:
+    # "Ask HN: Who is hiring?" monthly thread via the free Algolia API. No key.
+    # Remote / startup heavy. Comments must hit >= min_keyword_hits of these terms.
+    enabled: true
+    min_keyword_hits: 3
+    max_comments: 400
+
+  adzuna:
+    # Official Adzuna API, free tier (~250 calls/month). Needs ADZUNA_APP_ID +
+    # ADZUNA_APP_KEY in .env (https://developer.adzuna.com). Skipped if unset.
+    enabled: true
+    country: in
+    max_days_old: 7
+    results_per_page: 50
+    queries:
+      - "AI engineer"
+      - "machine learning engineer"
+      - "data engineer"
+      - "LLM engineer"
+
   career_ops:
     # Option B: pinned Apify actors called over the REST API and fed into the
     # same pipeline as the ATS sources. Needs APIFY_TOKEN in the environment.

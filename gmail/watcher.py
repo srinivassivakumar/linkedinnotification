@@ -31,7 +31,9 @@ DEFAULT_QUERY = (
     'newer_than:3d ('
     'subject:"accepted your invitation" OR subject:interview OR subject:assessment '
     'OR subject:application OR subject:recruiter OR subject:offer OR subject:opportunity '
-    'OR subject:naukri OR from:naukri OR "job alert" OR "recommended jobs"'
+    'OR subject:naukri OR from:naukri OR "job alert" OR "recommended jobs" '
+    'OR from:linkedin.com OR from:indeed.com OR from:instahyre.com '
+    'OR subject:"jobs for you" OR subject:"new jobs"'
     ')'
 )
 
@@ -81,27 +83,54 @@ def list_messages(service: Any, query: str, max_results: int) -> list[dict[str, 
     return resp.get("messages", [])[:max_results]
 
 
-def _handle_naukri_alert(payload: dict[str, Any], store: SqliteStore, bot: TelegramBot) -> str:
+def _score_and_card(
+    jobs: list[Any], store: SqliteStore, bot: TelegramBot, *, naukri_style: bool
+) -> int:
+    """Score parsed alert jobs, persist the unseen ones, send a card for each
+    non-weak one. Returns the number carded."""
     from orchestrator.models import Candidate
     from orchestrator.policies import load_evidence, load_preferences
     from orchestrator.scorer import score_job
-    from sources.naukri import jobs_from_alert_email
-    from telegram.cards import naukri_buttons, naukri_card
+    from telegram.cards import inline_buttons, candidate_card, naukri_buttons, naukri_card
 
     prefs = load_preferences()
     evidence = load_evidence()
-    jobs = jobs_from_alert_email(extract_html(payload) or extract_text(payload))
-    candidates = [Candidate(job=job, score=score_job(job, prefs, evidence)) for job in jobs]
-    new = store.diff_new_or_changed(candidates)
-    store.persist(new)
+    known = store.known_job_keys()
+    candidates = [
+        Candidate(job=job, score=score_job(job, prefs, evidence))
+        for job in jobs
+        if job.canonical_key not in known
+    ]
+    store.persist(candidates)
     carded = 0
-    for candidate in new:
+    for candidate in candidates:
         if candidate.score.bucket == "weak":
             continue
         if bot.configured:
-            bot.send_message(naukri_card(candidate), naukri_buttons(candidate))
+            if naukri_style:
+                bot.send_message(naukri_card(candidate), naukri_buttons(candidate))
+            else:
+                bot.send_message(candidate_card(candidate), inline_buttons(candidate))
         carded += 1
-    return f"naukri:{len(jobs)} parsed, {carded} carded (manual OPEN/APPLY only)"
+    return carded
+
+
+def _handle_naukri_alert(payload: dict[str, Any], store: SqliteStore, bot: TelegramBot) -> str:
+    from sources.naukri import jobs_from_alert_email
+
+    jobs = jobs_from_alert_email(extract_html(payload) or extract_text(payload))
+    carded = _score_and_card(jobs, store, bot, naukri_style=True)
+    return f"naukri_alert:{len(jobs)} parsed, {carded} carded"
+
+
+def _handle_job_alert(
+    provider: str, payload: dict[str, Any], subject: str, sender: str, store: SqliteStore, bot: TelegramBot
+) -> str:
+    from sources.job_alert_emails import jobs_from_alert
+
+    _, jobs = jobs_from_alert(sender, subject, extract_html(payload), extract_text(payload))
+    carded = _score_and_card(jobs, store, bot, naukri_style=False)
+    return f"{provider}_alert:{len(jobs)} parsed, {carded} carded"
 
 
 _ALWAYS_HUMAN = {"offer", "unknown"}
@@ -201,6 +230,14 @@ def process_message(
     if "naukri" in sender.lower() or "naukri" in subject.lower():
         result = _handle_naukri_alert(payload, store, bot)
         store.mark_email_processed(message_id, "naukri_alert")
+        return result
+
+    from sources.job_alert_emails import alert_provider
+
+    alert_name = alert_provider(sender, subject)
+    if alert_name:
+        result = _handle_job_alert(alert_name, payload, subject, sender, store, bot)
+        store.mark_email_processed(message_id, f"{alert_name}_alert")
         return result
 
     classification = classify_inbound(sender, subject, snippet, provider)

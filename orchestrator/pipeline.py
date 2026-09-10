@@ -13,10 +13,14 @@ from orchestrator.live_check import live_status
 from orchestrator.models import Candidate, Job, RunSummary, SourceResult
 from orchestrator.policies import apply_conservative_filters, load_evidence, load_preferences, load_yaml
 from orchestrator.scorer import score_job
+from sources.adzuna import AdzunaSource
 from sources.ashby import AshbySource
 from sources.career_ops import CareerOpsSource
 from sources.greenhouse import GreenhouseSource
+from sources.hackernews import HackerNewsWhoIsHiringSource
 from sources.lever import LeverSource
+from sources.smartrecruiters import SmartRecruitersSource
+from sources.workday import WorkdaySource
 from state.store import SqliteStore
 
 
@@ -40,6 +44,20 @@ def build_sources(config: dict[str, Any]) -> list[Any]:
     ashby = ats_cfg.get("ashby", {})
     if ashby.get("enabled", True):
         output.append(AshbySource(ashby.get("companies", [])))
+    workday = ats_cfg.get("workday", {})
+    if workday.get("enabled", False) and workday.get("companies"):
+        output.append(WorkdaySource(workday["companies"], per_company_limit=int(workday.get("per_company_limit", 20))))
+    smartrecruiters = ats_cfg.get("smartrecruiters", {})
+    if smartrecruiters.get("enabled", False) and smartrecruiters.get("companies"):
+        output.append(SmartRecruitersSource(smartrecruiters["companies"], fetch_details=bool(smartrecruiters.get("fetch_details", True))))
+
+    hn = sources_cfg.get("hackernews", {})
+    if hn.get("enabled", False):
+        output.append(HackerNewsWhoIsHiringSource(hn))
+    adzuna = sources_cfg.get("adzuna", {})
+    if adzuna.get("enabled", False):
+        output.append(AdzunaSource(adzuna))
+
     career_ops = sources_cfg.get("career_ops", {})
     output.append(CareerOpsSource(career_ops))
     return output
