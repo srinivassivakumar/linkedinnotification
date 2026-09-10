@@ -28,6 +28,17 @@
 - LinkedIn sending remains manual. Store profile URLs and prepared messages only.
 
 ## Claude
-- Current status: `CLAUDE_MODE=mock` and `intelligence/claude.py` intentionally raises.
-- Next step: implement only the `IntelligenceProvider` methods, starting with `evaluate_jobs`.
-- Claude must consume `candidate_payload(...)`, deterministic score output, and verified evidence only.
+- Current status (R1 done): `intelligence/claude.py` implements
+  `ClaudeProvider.evaluate_jobs` with strict structured output
+  (`score`, `priority`, `evidence_fit`, `gaps`, `risks`, `human_path_hint`,
+  `recommended_next_action`), a serious/uncertain candidate gate
+  (`bucket in {strong_candidate, review}`), a per-run evaluation cap
+  (`CLAUDE_MAX_EVALUATIONS`), evidence-id verification against
+  `profile/evidence_bank.yaml`, and safe error verdicts. Tests:
+  `tests/test_claude_provider.py`. The Anthropic client is lazy/injectable.
+- `CLAUDE_MODE` stays `mock`; `orchestrator/pipeline.py` still hard-codes the mock
+  provider. Flip only after a manual audit of a live run (see `ROADMAP_R2_R3.md`).
+- `tailor_application` / `classify_reply` / `prepare_interview` still raise
+  `NotImplementedError` (R2/R4 targets).
+- Claude consumes `candidate_payload(...)`, deterministic score output, and
+  verified evidence only.

@@ -1,5 +1,9 @@
 requests
+anthropic
 pyyaml
+google-api-python-client
+google-auth
+google-auth-oauthlib
 python-dotenv
 pydantic
 tenacity
