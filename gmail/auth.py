@@ -48,3 +48,13 @@ def get_gmail_service():
     from googleapiclient.discovery import build
 
     return build("gmail", "v1", credentials=get_credentials(), cache_discovery=False)
+
+
+if __name__ == "__main__":
+    # `python -m gmail.auth` - run the browser OAuth flow and (re)write
+    # secrets/token.json. Use this whenever the cloud tick logs
+    # "invalid_grant: Token has been expired or revoked" for Gmail.
+    creds = get_credentials()
+    print(f"token written to {TOKEN_FILE} (valid={creds.valid})")
+    print("Now update the GitHub secret:")
+    print("  gh secret set GMAIL_TOKEN_JSON --repo srinivassivakumar/linkedinnotification < secrets/token.json")

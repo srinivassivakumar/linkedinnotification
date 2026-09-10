@@ -105,6 +105,20 @@ or they will fight over the state commit.
 
 ---
 
+## Gmail token expiry (recurring)
+
+If the Google OAuth app is in "Testing" status, the refresh token **expires
+after 7 days** and the cloud tick logs
+`invalid_grant: Token has been expired or revoked` for the Gmail phase (the rest
+of the tick still runs). To fix:
+
+1. Locally: `python -m gmail.auth` → browser → sign in → consent. Rewrites
+   `secrets/token.json`.
+2. `gh secret set GMAIL_TOKEN_JSON --repo srinivassivakumar/linkedinnotification < secrets/token.json`
+
+**Permanent fix:** Google Cloud Console → APIs & Services → OAuth consent screen →
+**Publish app** (Testing → In production). Refresh tokens then stop expiring.
+
 ## What still needs YOU, per tick / occasionally
 
 - Press Telegram buttons: PREPARE / SKIP / drafts / APPROVE connection.
