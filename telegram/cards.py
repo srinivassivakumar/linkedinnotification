@@ -218,6 +218,58 @@ def inline_buttons(candidate: Candidate) -> dict[str, list[list[dict[str, str]]]
     )
 
 
+def connection_card(connection: dict[str, Any]) -> str:
+    name = connection.get("name") or "Unknown"
+    title = connection.get("current_title") or connection.get("headline") or ""
+    company = connection.get("company") or "unknown company"
+    ptype = (connection.get("person_type") or "unknown").title()
+    draft = connection.get("generated_message") or connection.get("draft_message") or "(no draft)"
+    lines = [
+        "🔗 LINKEDIN CONNECTION ACCEPTED",
+        DIVIDER,
+        "",
+        name,
+        title,
+        f"{ptype} · {company}",
+    ]
+    if connection.get("matched_job_key"):
+        score = connection.get("job_match_score")
+        score_txt = f" · match {score}" if score is not None else ""
+        lines += ["", f"🎯 Matches our open role: {connection['matched_job_key']}{score_txt}"]
+    lines += ["", "Suggested message (send manually):", "", draft]
+    return "\n".join(lines)
+
+
+def connection_buttons(connection: dict[str, Any]) -> dict[str, list[list[dict[str, str]]]]:
+    cid = connection.get("id")
+    rows: list[list[dict[str, str]]] = [
+        [action("✅ APPROVE DRAFT", f"conn:approve:{cid}"), action("❌ SKIP", f"conn:skip:{cid}")]
+    ]
+    link_row: list[dict[str, str]] = []
+    if connection.get("linkedin_url"):
+        link_row.append(url_button("👤 OPEN LINKEDIN", connection["linkedin_url"]))
+    if connection.get("job_url"):
+        link_row.append(url_button("💼 JOB", connection["job_url"]))
+    if link_row:
+        rows.append(link_row)
+    return keyboard(rows)
+
+
+def why_score_card(candidate: Candidate) -> str:
+    score = candidate.score
+    lines = [f"🧠 WHY {score.pre_score}/100", DIVIDER, ""]
+    for name, value in sorted(score.signals.items(), key=lambda kv: kv[1], reverse=True):
+        lines.append(f"{name:<26} {value}")
+    if score.matched_terms:
+        lines += ["", "Matched: " + ", ".join(score.matched_terms[:10])]
+    intelligence = candidate.intelligence or {}
+    if intelligence.get("reason"):
+        lines += ["", "Claude: " + str(intelligence["reason"])]
+    if intelligence.get("gaps"):
+        lines += ["", "Gaps: " + "; ".join(intelligence["gaps"][:3])]
+    return "\n".join(lines)
+
+
 def home_card(snapshot: DashboardSnapshot) -> str:
     return "\n".join(
         [

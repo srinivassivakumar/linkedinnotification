@@ -1,5 +1,6 @@
 requests
 anthropic
+beautifulsoup4
 pyyaml
 google-api-python-client
 google-auth

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +17,7 @@ from sources.ashby import AshbySource
 from sources.career_ops import CareerOpsSource
 from sources.greenhouse import GreenhouseSource
 from sources.lever import LeverSource
-from state.store import JsonlStore
+from state.store import SqliteStore
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -121,8 +122,9 @@ def run_pipeline(
     limit: int | None = None,
     fixture: Path | None = None,
     notifier: Any | None = None,
-    store: JsonlStore | None = None,
+    store: SqliteStore | None = None,
     prepare_key: str | None = None,
+    intelligence_mode: str | None = None,
 ) -> RunSummary:
     preferences = load_preferences()
     evidence = load_evidence()
@@ -139,8 +141,9 @@ def run_pipeline(
         return RunSummary(mode=mode, dry_run=dry_run, counts={"raw": len(raw)}, source_results=source_results)
 
     candidates, counts = build_candidates(raw, preferences, evidence, sources_config)
-    store = store or JsonlStore(ROOT / "state")
-    provider = get_intelligence_provider("mock")
+    store = store or SqliteStore(ROOT / "state")
+    resolved_mode = intelligence_mode or os.getenv("CLAUDE_MODE", "mock")
+    provider = get_intelligence_provider(resolved_mode)
     new_or_changed = store.diff_new_or_changed(candidates)
     evaluated = provider.evaluate_jobs(new_or_changed, evidence)
     counts["new_or_changed"] = len(evaluated)

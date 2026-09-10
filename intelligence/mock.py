@@ -33,8 +33,32 @@ class MockProvider(IntelligenceProvider):
         }
 
     def classify_reply(self, message: Any) -> dict[str, Any]:
-        return {"type": "unknown", "confidence": 0.0, "provider": "mock"}
+        return {
+            "type": "unknown",
+            "company": None,
+            "role": None,
+            "confidence": 0.0,
+            "recommended_action": "manual_review",
+            "needs_human": True,
+            "provider": "mock",
+        }
 
     def prepare_interview(self, application: dict[str, Any]) -> dict[str, Any]:
         return {"status": "mock", "provider": "mock"}
+
+    def research_connection(
+        self, connection: dict[str, Any], company_jobs: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
+        return {
+            "person_type": "unknown",
+            "company": connection.get("company"),
+            "matched_job_key": None,
+            "job_match_score": 0.0,
+            "draft_kind": "networking",
+            "draft_message": "Pending Claude drafting. Manual review required. LinkedIn sending is manual only.",
+            "confidence": 0.0,
+            "needs_human": True,
+            "status": "manual_review",
+            "provider": "mock",
+        }
 

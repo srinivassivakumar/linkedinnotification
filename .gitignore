@@ -10,6 +10,9 @@ secrets/
 *.log
 artifacts/generated/
 state/runtime/
+state/*.db
+state/*.db-wal
+state/*.db-shm
 .DS_Store
 Thumbs.db
 

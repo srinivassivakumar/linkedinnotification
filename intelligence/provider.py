@@ -23,6 +23,12 @@ class IntelligenceProvider(ABC):
     def prepare_interview(self, application: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
+    @abstractmethod
+    def research_connection(
+        self, connection: dict[str, Any], company_jobs: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
+        raise NotImplementedError
+
 
 def candidate_payload(candidate: Candidate, evidence: list[dict[str, Any]]) -> dict[str, Any]:
     matched = set(candidate.score.matched_evidence_ids)

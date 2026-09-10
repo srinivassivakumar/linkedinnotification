@@ -1,46 +1,54 @@
-# Career Agent Pre-Claude MVP
+# Career Agent
 
-This repository implements the deterministic pre-Claude job hunt automation
-spine from `builmanual.pdf`.
+One integrated job-hunt automation project, built from
+`Claude_Job_Hunt_Automation_Build_Guide_Revised_Connector_First.pdf` and merged
+with the `linkedinnotification` codebase.
 
-## What Works Now
-- Greenhouse, Lever and Ashby public ATS adapters behind a common `Job` model.
-- Conservative normalization, dedupe, freshness, live, location, seniority and role-family filtering.
-- Deterministic pre-score with explainable signal breakdown.
-- JSONL state and `seen_jobs.json` for idempotent runs.
-- Telegram message sender and candidate cards.
-- Telegram operations-console cards for home, job queue, focus, today, human path,
-  application state, interview, follow-up, and settings views.
-- Mock intelligence provider for end-to-end testing before Claude Pro.
-- Application artifact skeleton behind a manual PREPARE action.
-- Gmail reply classifier skeleton.
-- GitHub Actions workflows for tests and scheduled scans.
+- **Deterministic orchestrator** — Greenhouse / Lever / Ashby ATS adapters, a
+  common `Job` model, conservative dedupe / freshness / location / seniority /
+  role-family filtering, an explainable pre-score, idempotent runs.
+- **Claude reasoning layer** (`IntelligenceProvider`) — `evaluate_jobs` (serious
+  candidates only, strict structured output, evidence-grounded),
+  `classify_reply`, `tailor_application` (P0-gated), `research_connection`.
+  `MockProvider` runs until `CLAUDE_MODE=claude` after a manual audit. Auth is the
+  `ant auth login` subscription — no API key.
+- **Telegram** — candidate + ops-console cards, and a callback worker that turns
+  inline buttons into idempotent state changes (PREPARE / SKIP / WHY / JD /
+  HUMAN PATH / APPROVE). Nothing is ever sent on your behalf.
+- **Gmail watcher** — background loop (read-only scope) that routes LinkedIn
+  "accepted" mails to connection cross-linking, and recruiter / ATS / Naukri mail
+  to the Claude classifier, with `processed_emails` idempotency.
+- **LinkedIn** — parse the acceptance email, infer the company, match against your
+  jobs table, draft a message, card it for manual sending.
+- **SQLite** (`state/career_agent.db`) — single source of truth: jobs,
+  applications, events, contacts, connections, processed emails.
 
 ## Setup
 
 ```powershell
 cd E:\sri\X-Pent-Dev\ClaudeJob
-python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
 pip install -r requirements.txt
-Copy-Item .env.example .env
+ant auth login            # Claude via your Anthropic subscription
 ```
 
-Add real ATS board IDs in `config/sources.yaml`. Keep `.env` private.
+See **`MANUAL_SETUP.md`** for the full checklist (job sources, evidence bank
+audit, turning Claude on, running the workers, optional connectors).
 
-## Useful Commands
+## Commands
 
 ```powershell
-python -m orchestrator.main --mode fetch-only --limit 20
-python -m orchestrator.main --mode scan --dry-run --fixture tests/fixtures/golden_jobs.json
-python -m orchestrator.main --mode scan --fixture tests/fixtures/golden_jobs.json
-python -m orchestrator.main --mode notify-test
+python run_agent.py scan --dry-run --limit 5          # smoke test, no sends
+python run_agent.py scan                              # real scan -> Telegram
+python run_agent.py once                              # one scan + one Gmail pass (for Task Scheduler)
+python run_agent.py workers                           # Gmail + Telegram workers, supervised
 python -m orchestrator.main --mode dashboard-test --fixture tests/fixtures/golden_jobs.json
-python -m orchestrator.main --mode prepare --job-key fixture:perfect-junior
 pytest -q
 ```
 
-## Current Boundary
-Claude, Career Ops, Apify, Gmail sending and LinkedIn actions are not faked.
-Those are connector/setup tasks documented in `CLAUDE.md`.
+## Boundary
+
+Career Ops and Apify are not wired in (connector/review tasks — see
+`MANUAL_SETUP.md` §7). LinkedIn sending/scraping/browser automation and Naukri
+automation are out of scope by policy. Interview prep and the follow-up cadence
+engine are stubs.

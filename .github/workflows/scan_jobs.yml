@@ -1,46 +1,23 @@
-name: Scan jobs
+name: Scan jobs (dispatch smoke only)
+
+# Scheduled stateful scans run on your always-on machine via Windows Task
+# Scheduler (`python run_agent.py once`) - the SQLite state cannot persist on an
+# ephemeral GitHub runner. This workflow is a manual, stateless smoke check.
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "30 23 * * *"
-    - cron: "30 2 * * *"
-    - cron: "30 5 * * *"
-    - cron: "30 8 * * *"
-    - cron: "30 11 * * *"
-    - cron: "30 14 * * *"
-    - cron: "30 17 * * *"
-    - cron: "30 20 * * *"
-
-permissions:
-  contents: write
 
 jobs:
   scan:
     runs-on: ubuntu-latest
-    concurrency:
-      group: career-agent-state-writer
-      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements.txt
-      - name: Run scanner
+      - name: Dry-run scan (no sends, no state commit)
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           CLAUDE_MODE: mock
-        run: python -m orchestrator.main --mode scan
-      - name: Persist state
-        run: |
-          git config user.name "career-agent-bot"
-          git config user.email "career-agent-bot@users.noreply.github.com"
-          git add state/
-          git diff --cached --quiet || git commit -m "state: update career agent"
-          git push
-
+        run: python run_agent.py scan --dry-run --limit 10

@@ -36,6 +36,34 @@ class TelegramBot:
         response.raise_for_status()
         return response.json()
 
+    def get_updates(self, offset: int | None = None, timeout: int = 30) -> dict[str, Any]:
+        if not self.configured:
+            return {"ok": False, "result": [], "skipped": True}
+        params: dict[str, Any] = {"timeout": timeout}
+        if offset is not None:
+            params["offset"] = offset
+        response = requests.get(
+            f"https://api.telegram.org/bot{self.token}/getUpdates",
+            params=params,
+            timeout=timeout + 5,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def answer_callback_query(self, callback_query_id: str, text: str | None = None) -> dict[str, Any]:
+        if not self.configured:
+            return {"ok": False, "skipped": True}
+        payload: dict[str, Any] = {"callback_query_id": callback_query_id}
+        if text:
+            payload["text"] = text
+        response = requests.post(
+            f"https://api.telegram.org/bot{self.token}/answerCallbackQuery",
+            json=payload,
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        return response.json()
+
     def send_candidates(self, candidates: list[Candidate]) -> list[str]:
         sent: list[str] = []
         for candidate in candidates:

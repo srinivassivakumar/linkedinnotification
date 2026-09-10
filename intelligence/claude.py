@@ -69,6 +69,75 @@ JSON schema (all fields required):
 
 NEXT_ACTIONS = ("act_now", "prepare", "store", "archive")
 
+TAILOR_SYSTEM = """\
+You tailor a job application for ONE role using only verified evidence. Return a
+single JSON object, no prose, no markdown fences.
+
+Rules:
+- Every claim in every file must trace to a `verified_evidence` id. Never invent a
+  technology, metric, outcome, responsibility or duration.
+- You may reorder, shorten and rephrase evidence.
+- If the JD requires something the evidence does not support, do NOT claim it -
+  list it in `warnings`.
+- Keep the recruiter email and referral/LinkedIn messages short and truthful.
+
+JSON schema (all fields required):
+{
+  "base_track": "AI/GenAI" | "ML" | "Data" | "MLOps" | "DevOps/Cloud",
+  "evidence_used": [ "<evidence_id>: <how it is used>" ],
+  "resume_markdown": "<tailored one-page resume in markdown>",
+  "cover_letter": "<short cover letter>",
+  "recruiter_email": "<short outreach email to a recruiter>",
+  "referral_message": "<short message asking an employee for a referral>",
+  "linkedin_message": "<short LinkedIn note; will be sent manually>",
+  "application_answers": "<markdown: common application questions with truthful answers>",
+  "warnings": [ "<JD requirement not supported by verified evidence>" ]
+}
+"""
+
+CLASSIFY_SYSTEM = """\
+You classify one inbound email in a job-hunt pipeline. Return a single JSON
+object, no prose, no fences.
+
+Never recommend an automatic reply to an offer, compensation discussion, or an
+ambiguous message - set needs_human true and recommended_action "escalate".
+
+JSON schema (all fields required):
+{
+  "type": "application_receipt" | "recruiter_reply" | "assessment" |
+          "interview_invite" | "rejection" | "offer" | "unknown",
+  "company": "<company or null>",
+  "role": "<role or null>",
+  "confidence": number 0-1,
+  "recommended_action": "mark_acknowledged" | "draft_reply" | "create_task" |
+                        "prepare_interview" | "record_and_stop" | "escalate" | "manual_review",
+  "needs_human": boolean
+}
+"""
+
+CONNECTION_SYSTEM = """\
+An accepted LinkedIn connection needs a short, honest draft message. Use only the
+connection's headline and OUR open jobs at their company. Return a single JSON
+object, no prose, no fences.
+
+- Infer person_type from the headline only.
+- If one of our open jobs is a genuine fit, set matched_job_key to that job_key
+  and write a referral-oriented draft. Otherwise leave it null and write a
+  networking-only draft.
+- Never fabricate a job, a mutual connection, or applicant experience.
+- The message is sent manually by the user; keep it under 90 words.
+
+JSON schema (all fields required):
+{
+  "person_type": "employee" | "founder" | "recruiter" | "unknown",
+  "company": "<company or null>",
+  "matched_job_key": "<job_key from the provided list, or null>",
+  "job_match_score": number 0-100,
+  "draft_message": "<the message>",
+  "confidence": number 0-1
+}
+"""
+
 
 class ClaudeEvaluation(BaseModel):
     """Validated structured output for a single candidate."""
@@ -103,6 +172,96 @@ class ClaudeEvaluation(BaseModel):
         if isinstance(value, str):
             return [value]
         return [str(item) for item in value]
+
+
+class TailoredApplication(BaseModel):
+    base_track: str = "AI/GenAI"
+    evidence_used: list[str] = Field(default_factory=list)
+    resume_markdown: str
+    cover_letter: str
+    recruiter_email: str
+    referral_message: str
+    linkedin_message: str
+    application_answers: str = ""
+    warnings: list[str] = Field(default_factory=list)
+
+    @field_validator("evidence_used", "warnings", mode="before")
+    @classmethod
+    def _lists(cls, value: Any) -> list[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [value]
+        return [str(v) for v in value]
+
+
+REPLY_TYPES = (
+    "application_receipt",
+    "recruiter_reply",
+    "assessment",
+    "interview_invite",
+    "rejection",
+    "offer",
+    "unknown",
+)
+
+
+class ReplyClassification(BaseModel):
+    type: str
+    company: str | None = None
+    role: str | None = None
+    confidence: float = 0.0
+    recommended_action: str = "manual_review"
+    needs_human: bool = True
+
+    @field_validator("type")
+    @classmethod
+    def _type(cls, value: str) -> str:
+        cleaned = str(value or "").strip().lower()
+        return cleaned if cleaned in REPLY_TYPES else "unknown"
+
+
+class ConnectionResearch(BaseModel):
+    person_type: str = "unknown"
+    company: str | None = None
+    matched_job_key: str | None = None
+    job_match_score: float = 0.0
+    draft_message: str = ""
+    confidence: float = 0.0
+
+    @field_validator("person_type")
+    @classmethod
+    def _ptype(cls, value: str) -> str:
+        cleaned = str(value or "").strip().lower()
+        return cleaned if cleaned in {"employee", "founder", "recruiter", "unknown"} else "unknown"
+
+
+def _profile_snapshot() -> dict[str, Any]:
+    from orchestrator.policies import load_yaml
+
+    data = load_yaml(ROOT / "profile" / "master_profile.yaml")
+    return {
+        "name": data.get("name"),
+        "headline": data.get("headline"),
+        "location": data.get("location"),
+        "experience_years": data.get("experience_years"),
+        "summary": data.get("summary"),
+        "skills": data.get("skills"),
+    }
+
+
+def _normalize_message(message: Any) -> dict[str, str]:
+    if isinstance(message, dict):
+        return {
+            "sender": str(message.get("sender", message.get("from", ""))),
+            "subject": str(message.get("subject", "")),
+            "snippet": str(message.get("snippet", message.get("body", ""))),
+        }
+    return {
+        "sender": str(getattr(message, "sender", "")),
+        "subject": str(getattr(message, "subject", "")),
+        "snippet": str(getattr(message, "snippet", "")),
+    }
 
 
 def _strip_json(text: str) -> str:
@@ -181,14 +340,142 @@ class ClaudeProvider(IntelligenceProvider):
         return output
 
     def tailor_application(self, job: Job, evidence: list[dict[str, Any]]) -> dict[str, Any]:
-        raise NotImplementedError(
-            "tailor_application is an R2 target (application factory). Keep CLAUDE_MODE=mock."
+        bank = self._evidence_bank(evidence)
+        valid_ids = {str(item.get("id")) for item in bank}
+        user_content = json.dumps(
+            {
+                "job": {
+                    "company": job.company,
+                    "title": job.title,
+                    "location": job.location,
+                    "url": job.url,
+                    "jd": job.description,
+                },
+                "verified_evidence": _evidence_for_prompt(bank),
+                "profile": _profile_snapshot(),
+            },
+            sort_keys=True,
+            default=str,
         )
+        try:
+            raw = self._call_claude(user_content, system=TAILOR_SYSTEM, max_tokens=4000)
+            tailored = TailoredApplication.model_validate_json(_strip_json(raw))
+        except NotImplementedError:
+            raise
+        except (ValidationError, json.JSONDecodeError, ValueError) as exc:
+            return {"status": "error", "provider": "claude", "error": f"invalid_structured_output: {exc}", "files": {}}
+        except Exception as exc:  # noqa: BLE001
+            return {"status": "error", "provider": "claude", "error": f"claude_call_failed: {exc}", "files": {}}
+
+        _, dropped = _partition_evidence_fit(tailored.evidence_used, valid_ids)
+        warnings = list(tailored.warnings)
+        if dropped:
+            warnings.append("dropped unverified evidence references: " + ", ".join(dropped))
+        return {
+            "status": "prepared",
+            "provider": "claude",
+            "model": self.model,
+            "base_track": tailored.base_track,
+            "evidence_used": [e for e in tailored.evidence_used if e.split(":", 1)[0].strip() in valid_ids],
+            "warnings": warnings,
+            "files": {
+                "resume.md": tailored.resume_markdown,
+                "cover_letter.md": tailored.cover_letter,
+                "recruiter_email.txt": tailored.recruiter_email,
+                "referral_message.txt": tailored.referral_message,
+                "linkedin_message.txt": tailored.linkedin_message,
+                "application_answers.md": tailored.application_answers,
+            },
+        }
 
     def classify_reply(self, message: Any) -> dict[str, Any]:
-        raise NotImplementedError(
-            "classify_reply is an R4 target (Gmail reply classifier). Keep CLAUDE_MODE=mock."
+        normalized = _normalize_message(message)
+        user_content = json.dumps(normalized, sort_keys=True)
+        try:
+            raw = self._call_claude(user_content, system=CLASSIFY_SYSTEM, max_tokens=800)
+            result = ReplyClassification.model_validate_json(_strip_json(raw))
+        except NotImplementedError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - fall back to the deterministic classifier
+            from gmail.classifier import GmailMessage, classify_message
+
+            fallback = classify_message(
+                GmailMessage(
+                    sender=normalized.get("sender", ""),
+                    subject=normalized.get("subject", ""),
+                    snippet=normalized.get("snippet", ""),
+                )
+            )
+            fallback.update({"provider": "deterministic_fallback", "error": str(exc)})
+            return fallback
+
+        never_auto = result.type in {"offer", "unknown"}
+        return {
+            "type": result.type,
+            "company": result.company,
+            "role": result.role,
+            "confidence": result.confidence,
+            "recommended_action": result.recommended_action,
+            "needs_human": result.needs_human or never_auto,
+            "provider": "claude",
+            "model": self.model,
+        }
+
+    def research_connection(
+        self, connection: dict[str, Any], company_jobs: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
+        jobs = company_jobs or []
+        user_content = json.dumps(
+            {
+                "connection": {
+                    "name": connection.get("name"),
+                    "headline": connection.get("headline") or connection.get("current_title"),
+                    "location": connection.get("location"),
+                },
+                "our_open_jobs_at_their_company": [
+                    {"job_key": j.get("job_key"), "title": j.get("title"), "company": j.get("company"),
+                     "location": j.get("location"), "url": j.get("url")}
+                    for j in jobs
+                ],
+                "profile": _profile_snapshot(),
+            },
+            sort_keys=True,
+            default=str,
         )
+        try:
+            raw = self._call_claude(user_content, system=CONNECTION_SYSTEM, max_tokens=1500)
+            result = ConnectionResearch.model_validate_json(_strip_json(raw))
+        except NotImplementedError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "person_type": "unknown",
+                "company": None,
+                "matched_job_key": None,
+                "draft_kind": "networking",
+                "draft_message": "",
+                "confidence": 0.0,
+                "needs_human": True,
+                "status": "manual_review",
+                "error": f"claude_call_failed: {exc}",
+                "provider": "claude",
+            }
+
+        valid_keys = {j.get("job_key") for j in jobs}
+        matched = result.matched_job_key if result.matched_job_key in valid_keys else None
+        return {
+            "person_type": result.person_type,
+            "company": result.company,
+            "matched_job_key": matched,
+            "job_match_score": result.job_match_score,
+            "draft_kind": "referral" if matched else "networking",
+            "draft_message": result.draft_message,
+            "confidence": result.confidence,
+            "needs_human": True,
+            "status": "awaiting_approval",
+            "provider": "claude",
+            "model": self.model,
+        }
 
     def prepare_interview(self, application: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError(
@@ -267,17 +554,11 @@ class ClaudeProvider(IntelligenceProvider):
             "reason": "Claude evaluation failed; deterministic pre-score only. Human review required.",
         }
 
-    def _call_claude(self, user_content: str) -> str:
+    def _call_claude(self, user_content: str, system: str = SYSTEM_PROMPT, max_tokens: int = 2000) -> str:
         response = self.client.messages.create(
             model=self.model,
-            max_tokens=2000,
-            system=[
-                {
-                    "type": "text",
-                    "text": SYSTEM_PROMPT,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ],
+            max_tokens=max_tokens,
+            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             messages=[{"role": "user", "content": user_content}],
         )
         parts = [
