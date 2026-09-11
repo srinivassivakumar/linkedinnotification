@@ -133,6 +133,18 @@ evidence:
     metrics: []
     source: "SrinivasSivakumar_Resume.pdf"
     verified: true
+  - id: claude_academy_certificate
+    type: certification
+    title: "Claude Academy certificate (Anthropic)"
+    claims:
+      - "Completed the Claude Academy program on Claude/Anthropic tooling and agentic workflows."
+    technologies:
+      - Claude
+      - Anthropic
+      - LLMs
+    metrics: []
+    source: "Srinivas_Claude_Academy_LinkedIn_Carousel.pdf"
+    verified: true
   - id: xpent_architecture
     type: project
     title: "X-Pent provider-neutral local/cloud architecture"
