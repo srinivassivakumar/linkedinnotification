@@ -16,6 +16,7 @@ from orchestrator.scorer import score_job
 from sources.adzuna import AdzunaSource
 from sources.ashby import AshbySource
 from sources.career_ops import CareerOpsSource
+from sources.free_apis import ArbeitnowSource, RemoteOKSource, RemotiveSource
 from sources.greenhouse import GreenhouseSource
 from sources.hackernews import HackerNewsWhoIsHiringSource
 from sources.lever import LeverSource
@@ -57,6 +58,17 @@ def build_sources(config: dict[str, Any]) -> list[Any]:
     adzuna = sources_cfg.get("adzuna", {})
     if adzuna.get("enabled", False):
         output.append(AdzunaSource(adzuna))
+
+    free_apis = sources_cfg.get("free_apis", {})
+    remoteok = free_apis.get("remoteok", {})
+    if remoteok.get("enabled", False):
+        output.append(RemoteOKSource(remoteok))
+    remotive = free_apis.get("remotive", {})
+    if remotive.get("enabled", False):
+        output.append(RemotiveSource(remotive))
+    arbeitnow = free_apis.get("arbeitnow", {})
+    if arbeitnow.get("enabled", False):
+        output.append(ArbeitnowSource(arbeitnow))
 
     career_ops = sources_cfg.get("career_ops", {})
     output.append(CareerOpsSource(career_ops))
