@@ -65,6 +65,44 @@ sources:
       enabled: true
     shine:
       enabled: false
+  # Gmail job-alert-email parsers (see gmail/watcher.py + sources/job_alert_emails.py
+  # + sources/naukri.py). Free: you subscribe to alerts on each platform, the
+  # platform emails you, the Gmail watcher parses the mail it already reads.
+  # No scraping, no login automation against any of these sites.
+  email_alerts:
+    linkedin:
+      enabled: true
+    indeed:
+      enabled: true
+    instahyre:
+      enabled: true
+    naukri:
+      enabled: true
+    cutshort:
+      enabled: true
+    google_alerts:
+      # Google Alerts on queries like `site:boards.greenhouse.io "AI Engineer" India`.
+      # Only links that unwrap to a recognized ATS posting URL become jobs; the
+      # rest of the alert (news/blog links) is discarded. See unwrap_google_redirect
+      # in sources/job_alert_emails.py.
+      enabled: true
+
+  # Free, keyless public JSON job-board APIs. No .env needed.
+  free_apis:
+    remoteok:
+      enabled: true
+      min_keyword_hits: 1
+    remotive:
+      enabled: true
+      min_keyword_hits: 1
+      queries:
+        - "machine learning"
+        - "AI engineer"
+        - "data engineer"
+    arbeitnow:
+      enabled: true
+      min_keyword_hits: 1
+
   hackernews:
     # "Ask HN: Who is hiring?" monthly thread via the free Algolia API. No key.
     # Remote / startup heavy. Comments must hit >= min_keyword_hits of these terms.
@@ -88,12 +126,16 @@ sources:
   career_ops:
     # Option B: pinned Apify actors called over the REST API and fed into the
     # same pipeline as the ATS sources. Needs APIFY_TOKEN in the environment.
-    # ON as of 2026-09-11.
     #
+    # PAID and OFF BY DEFAULT. Job discovery is fully functional with this
+    # disabled (Gmail alert emails + direct ATS feeds + free job APIs cover
+    # discovery at $0/month) - only turn this on if you deliberately want the
+    # extra Apify-scraped coverage and are OK with the small per-run spend.
     # Free Apify plan = ~$5/month credit. The Naukri actor charges ~$0.26 per run
     # (50 jobs). min_interval_hours keeps it to one run per interval no matter how
-    # often `live` scans; monthly_cost_cap_usd is the backstop.
-    enabled: true
+    # often `live` scans; monthly_cost_cap_usd is the backstop. Even with
+    # enabled: true, nothing runs unless APIFY_TOKEN is also set.
+    enabled: false
     monthly_cost_cap_usd: 4.0
     timeout_seconds: 300
     notes: "Actors pinned by id. min_interval_hours + monthly_cost_cap_usd bound the spend."
