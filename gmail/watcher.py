@@ -32,8 +32,9 @@ DEFAULT_QUERY = (
     'subject:"accepted your invitation" OR subject:interview OR subject:assessment '
     'OR subject:application OR subject:recruiter OR subject:offer OR subject:opportunity '
     'OR subject:naukri OR from:naukri OR "job alert" OR "recommended jobs" '
-    'OR from:linkedin.com OR from:indeed.com OR from:instahyre.com '
-    'OR subject:"jobs for you" OR subject:"new jobs"'
+    'OR from:linkedin.com OR from:indeed.com OR from:instahyre.com OR from:cutshort.io '
+    'OR from:googlealerts-noreply@google.com '
+    'OR subject:"jobs for you" OR subject:"new jobs" OR subject:"Google Alert"'
     ')'
 )
 
@@ -196,6 +197,24 @@ def _handle_interview_invite(
         bot.send_message("\n".join(parts))
 
 
+def _email_alerts_config() -> dict[str, Any]:
+    from orchestrator.pipeline import load_sources_config
+
+    cfg = load_sources_config()
+    return cfg.get("sources", {}).get("email_alerts", {})
+
+
+def _alert_source_enabled(provider: str) -> bool:
+    """Per-platform on/off switch (config/sources.yaml: sources.email_alerts.<name>.enabled).
+    Defaults to on - these are free, zero-cost parsers of mail the user already
+    subscribed to, so there is no reason to default any of them off."""
+    try:
+        entry = _email_alerts_config().get(provider, {})
+    except Exception:  # noqa: BLE001 - config problems must never block Gmail processing
+        return True
+    return bool(entry.get("enabled", True))
+
+
 def _is_linkedin_acceptance(subject: str, sender: str) -> bool:
     return "accepted your invitation" in subject.lower() or (
         "linkedin" in (sender or "").lower() and "invitation" in subject.lower()
@@ -227,7 +246,7 @@ def process_message(
             bot.send_message(connection_card(connection), connection_buttons(connection))
         return "linkedin:carded"
 
-    if "naukri" in sender.lower() or "naukri" in subject.lower():
+    if ("naukri" in sender.lower() or "naukri" in subject.lower()) and _alert_source_enabled("naukri"):
         result = _handle_naukri_alert(payload, store, bot)
         store.mark_email_processed(message_id, "naukri_alert")
         return result
@@ -235,7 +254,7 @@ def process_message(
     from sources.job_alert_emails import alert_provider
 
     alert_name = alert_provider(sender, subject)
-    if alert_name:
+    if alert_name and _alert_source_enabled(alert_name):
         result = _handle_job_alert(alert_name, payload, subject, sender, store, bot)
         store.mark_email_processed(message_id, f"{alert_name}_alert")
         return result
