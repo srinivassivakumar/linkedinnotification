@@ -80,8 +80,23 @@ def sender_name(value: str | None) -> str | None:
 
 
 def list_messages(service: Any, query: str, max_results: int) -> list[dict[str, Any]]:
-    resp = service.users().messages().list(userId="me", q=query, maxResults=min(max_results, 100)).execute()
-    return resp.get("messages", [])[:max_results]
+    """Page through Gmail's list API (100 messages per page) until either
+    max_results is reached or the mailbox runs out of matching messages."""
+    messages: list[dict[str, Any]] = []
+    page_token: str | None = None
+    while len(messages) < max_results:
+        page_size = min(100, max_results - len(messages))
+        resp = (
+            service.users()
+            .messages()
+            .list(userId="me", q=query, maxResults=page_size, pageToken=page_token)
+            .execute()
+        )
+        messages.extend(resp.get("messages", []))
+        page_token = resp.get("nextPageToken")
+        if not page_token:
+            break
+    return messages[:max_results]
 
 
 def _score_and_card(
@@ -284,7 +299,7 @@ def run_once(provider: Any | None = None) -> dict[str, Any]:
     if not credentials_present():
         return {"status": "disabled", "reason": "Gmail secrets/credentials.json + token.json missing."}
     query = os.getenv("GMAIL_QUERY", DEFAULT_QUERY)
-    max_results = int(os.getenv("GMAIL_MAX_RESULTS", "25"))
+    max_results = int(os.getenv("GMAIL_MAX_RESULTS", "500"))
     store = SqliteStore(ROOT / "state")
     if provider is None:
         provider = get_intelligence_provider(os.getenv("CLAUDE_MODE", "mock"))
