@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -56,7 +57,9 @@ class TelegramBot:
         if caption:
             payload["caption"] = caption[:1024]
         if reply_markup:
-            payload["reply_markup"] = reply_markup
+            # multipart form fields (data=...) are not auto-serialized like
+            # json=... is - Telegram rejects a raw dict here with 400.
+            payload["reply_markup"] = json.dumps(reply_markup)
         with target.open("rb") as fh:
             response = requests.post(
                 f"https://api.telegram.org/bot{self.token}/sendDocument",
