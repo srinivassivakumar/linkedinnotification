@@ -82,18 +82,26 @@ class TelegramBot:
         return response.json()
 
     def answer_callback_query(self, callback_query_id: str, text: str | None = None) -> dict[str, Any]:
+        """Best-effort: this only clears the button's loading spinner in the
+        Telegram UI. Telegram rejects it once a callback query goes stale
+        (e.g. queued behind a slow scan), which must never abort the actual
+        action (sending the JD, why-score, resume, etc.) that follows it."""
         if not self.configured:
             return {"ok": False, "skipped": True}
         payload: dict[str, Any] = {"callback_query_id": callback_query_id}
         if text:
             payload["text"] = text
-        response = requests.post(
-            f"https://api.telegram.org/bot{self.token}/answerCallbackQuery",
-            json=payload,
-            timeout=self.timeout_seconds,
-        )
-        response.raise_for_status()
-        return response.json()
+        try:
+            response = requests.post(
+                f"https://api.telegram.org/bot{self.token}/answerCallbackQuery",
+                json=payload,
+                timeout=self.timeout_seconds,
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as exc:  # noqa: BLE001 - cosmetic ack, never blocks the real action
+            print(f"telegram answer_callback_query failed: {type(exc).__name__}: {exc}", flush=True)
+            return {"ok": False, "error": str(exc)}
 
     def _try_send(self, text: str, markup: dict[str, Any] | None) -> dict[str, Any]:
         try:
