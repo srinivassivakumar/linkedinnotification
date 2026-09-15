@@ -20,6 +20,7 @@ GitHub Actions is not involved in this runtime.
 
 from __future__ import annotations
 
+import threading
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -126,6 +127,8 @@ class LiveAgent:
         self._new_jobs_total = 0
         self._last_scan_monotonic = 0.0
         self._last_gmail_monotonic = 0.0
+        self._scan_lock = threading.Lock()
+        self._gmail_lock = threading.Lock()
 
     # -- lifecycle ---------------------------------------------------------
     def run(self) -> None:
@@ -150,7 +153,7 @@ class LiveAgent:
             scan_now_button(),
         )
 
-        self._run_scan("startup")
+        self._do_scan("startup")
 
         print("live: entering poll loop (Ctrl+C to stop)", flush=True)
         while not self._stop:
@@ -172,7 +175,10 @@ class LiveAgent:
         first = self.store.get_runtime(_FIRST_SCAN_DONE) != "1"
         return self.first_window_days * 24 if first else self.scan_window_hours
 
-    def _run_scan(self, trigger: str) -> None:
+    def _do_scan(self, trigger: str) -> None:
+        """The actual scan work. Blocking - call via _run_scan from the poll
+        loop so a slow multi-source fetch never delays answering other
+        pending button presses."""
         window = self._window_hours()
         label = f"{self.first_window_days}d" if window == self.first_window_days * 24 else f"{window}h"
         print(f"live: scan ({trigger}, window {label})", flush=True)
@@ -203,6 +209,22 @@ class LiveAgent:
             lines.append("(nothing new — you're caught up)")
         self.bot._try_send("\n".join(lines), scan_now_button())
 
+    def _run_scan(self, trigger: str) -> None:
+        """Fire-and-forget: runs _do_scan on a background thread so the poll
+        loop keeps answering other button presses / messages while a scan
+        (which can take minutes across every ATS source) is in flight."""
+        if not self._scan_lock.acquire(blocking=False):
+            self.bot._try_send("⏳ A scan is already in progress — hang tight.", None)
+            return
+
+        def _worker() -> None:
+            try:
+                self._do_scan(trigger)
+            finally:
+                self._scan_lock.release()
+
+        threading.Thread(target=_worker, name="live-scan", daemon=True).start()
+
     def _maybe_scheduled_scan(self) -> None:
         if not self.scan_interval:
             return
@@ -210,12 +232,7 @@ class LiveAgent:
             self._run_scan("scheduled")
 
     # -- gmail ----------------------------------------------------------
-    def _maybe_gmail(self) -> None:
-        if not self.gmail:
-            return
-        if time.monotonic() - self._last_gmail_monotonic < _GMAIL_INTERVAL_SECONDS:
-            return
-        self._last_gmail_monotonic = time.monotonic()
+    def _do_gmail_pass(self) -> None:
         try:
             from gmail.watcher import run_once as gmail_run_once
 
@@ -224,6 +241,23 @@ class LiveAgent:
                 print(f"live: gmail processed {status['processed']}", flush=True)
         except Exception as exc:  # noqa: BLE001
             print(f"live: gmail pass failed: {type(exc).__name__}: {exc}", flush=True)
+
+    def _maybe_gmail(self) -> None:
+        if not self.gmail:
+            return
+        if time.monotonic() - self._last_gmail_monotonic < _GMAIL_INTERVAL_SECONDS:
+            return
+        self._last_gmail_monotonic = time.monotonic()
+        if not self._gmail_lock.acquire(blocking=False):
+            return  # previous pass still running; skip this tick
+
+        def _worker() -> None:
+            try:
+                self._do_gmail_pass()
+            finally:
+                self._gmail_lock.release()
+
+        threading.Thread(target=_worker, name="live-gmail", daemon=True).start()
 
     # -- telegram -----------------------------------------------------
     def _poll_once(self) -> None:
