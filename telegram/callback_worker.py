@@ -82,6 +82,24 @@ def _read_artifact(path: Any, name: str, limit: int = 3200) -> str:
     return text[:limit] + ("\n\n...[truncated]" if len(text) > limit else "")
 
 
+def _send_as_document(
+    bot: TelegramBot, candidate: Any, filename: str, text: str, caption: str,
+    reply_markup: dict[str, Any] | None = None,
+) -> None:
+    """Deliver ``text`` as a tap-to-open Telegram document instead of a wall
+    of chat text - Telegram's own viewer opens it, and the device back
+    gesture returns straight to the chat."""
+    scratch = _artifact_dir(candidate) / "_view"
+    scratch.mkdir(parents=True, exist_ok=True)
+    target = scratch / filename
+    target.write_text(text, encoding="utf-8")
+    send_document = getattr(bot, "send_document", None)
+    if callable(send_document):
+        send_document(target, caption=caption[:1024], reply_markup=reply_markup)
+    else:
+        bot.send_message(f"{caption}\n\n{text}", reply_markup)
+
+
 def handle_callback(
     data: str,
     callback_id: str,
@@ -137,12 +155,18 @@ def handle_callback(
             return "skipped"
         if action == "why":
             bot.answer_callback_query(callback_id)
-            bot.send_message(why_score_card(candidate))
+            _send_as_document(
+                bot, candidate, "why_score.txt", why_score_card(candidate),
+                f"🧠 Why this score — {candidate.job.company} · {candidate.job.title}",
+            )
             return "explained"
         if action == "jd":
             bot.answer_callback_query(callback_id)
             jd = candidate.job.description or "(no description stored)"
-            bot.send_message(f"📋 {candidate.job.company} · {candidate.job.title}\n\n{jd[:3500]}")
+            _send_as_document(
+                bot, candidate, "job_description.txt", jd,
+                f"📋 Full JD — {candidate.job.company} · {candidate.job.title}",
+            )
             return "jd_sent"
         if action == "people":
             bot.answer_callback_query(callback_id)
@@ -203,29 +227,27 @@ def deliver_draft(
         )
         return "prepared"
     if action == "resume":
-        resume = _read_artifact(path, "resume.md")
+        caption = f"📄 Updated resume draft — {candidate.job.company} · {candidate.job.title}"
         send_document = getattr(bot, "send_document", None)
         if callable(send_document) and (path / "resume.md").exists():
-            send_document(
-                path / "resume.md",
-                caption=f"Updated resume draft for {candidate.job.company} - {candidate.job.title}",
-            )
-        bot.send_message(
-            f"📄 UPDATED RESUME DRAFT\n\n{candidate.job.company} · {candidate.job.title}\n\n{resume}\n\nArtifacts: {path}"
-        )
+            send_document(path / "resume.md", caption=caption)
+        else:
+            _send_as_document(bot, candidate, "resume.md", _read_artifact(path, "resume.md"), caption)
         return "resume_sent"
     if action == "email":
         draft = _read_artifact(path, "recruiter_email.txt")
-        bot.send_message(
-            f"✉️ RECRUITER EMAIL DRAFT\n\n{candidate.job.company} · {candidate.job.title}\n\n{draft}",
+        _send_as_document(
+            bot, candidate, "recruiter_email.txt", draft,
+            f"✉️ Recruiter email draft — {candidate.job.company} · {candidate.job.title}",
             draft_buttons(candidate, kind="email", draft=draft),
         )
         return "email_draft_sent"
     draft = _read_artifact(path, "linkedin_message.txt")
     if draft.startswith("NEEDS_CONFIRMATION"):
         draft = _read_artifact(path, "referral_message.txt")
-    bot.send_message(
-        f"💬 LINKEDIN / REFERRAL DRAFT\n\n{candidate.job.company} · {candidate.job.title}\n\n{draft}\n\nSend manually only.",
+    _send_as_document(
+        bot, candidate, "linkedin_referral_draft.txt", f"{draft}\n\nSend manually only.",
+        f"💬 LinkedIn / referral draft — {candidate.job.company} · {candidate.job.title}",
         draft_buttons(candidate, kind="linkedin", draft=draft),
     )
     return "linkedin_draft_sent"

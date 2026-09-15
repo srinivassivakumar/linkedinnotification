@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from application import drafts
 from application.drafts import deliver_one, list_pending
@@ -30,7 +31,7 @@ class FakeBot:
         self.sent.append(text)
         return {"ok": True}
 
-    def send_document(self, path, caption=""):
+    def send_document(self, path, caption="", reply_markup=None):
         self.docs.append((str(path), caption))
         return {"ok": True}
 
@@ -107,8 +108,9 @@ def test_deliver_uses_written_files_and_marks_delivered(tmp_path, monkeypatch):
 
     assert result["status"] == "ok"
     assert result["result"] == "email_draft_sent"
-    assert any("RECRUITER EMAIL DRAFT" in m for m in bot.sent)
-    assert any("aws_backup_infrastructure" in m for m in bot.sent)
+    assert any("Recruiter email draft" in caption for _, caption in bot.docs)
+    doc_path = next(path for path, caption in bot.docs if "Recruiter email draft" in caption)
+    assert "aws_backup_infrastructure" in Path(doc_path).read_text(encoding="utf-8")
     assert (written_dir / drafts.MARKER).exists()
     assert store.get_draft_request(rid)["status"] == "delivered"
     assert store.pending_draft_requests() == []
