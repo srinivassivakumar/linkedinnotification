@@ -15,12 +15,23 @@ guaranteed-accurate directory.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Callable
+from urllib.parse import urlparse
 
 _ROLE_HINTS = (
     "recruiter", "talent acquisition", "engineering manager",
     "hiring manager", "HR", "people operations",
 )
+
+# Hosts that turn up for "<company> official website" but are never the
+# company's own domain - never guess an email @ one of these.
+_NOT_COMPANY_DOMAINS = {
+    "linkedin.com", "glassdoor.com", "indeed.com", "crunchbase.com",
+    "wikipedia.org", "facebook.com", "twitter.com", "x.com", "instagram.com",
+    "youtube.com", "github.com", "medium.com", "ambitionbox.com",
+    "google.com", "bing.com",
+}
 
 SearchFn = Callable[..., list[dict[str, Any]]]
 
@@ -50,16 +61,69 @@ def _parse_hit(hit: dict[str, Any]) -> dict[str, str] | None:
     return {"name": name.strip() or title, "title": role.strip(), "url": url}
 
 
+def _domain_of(url: str) -> str | None:
+    host = (urlparse(url).netloc or "").lower()
+    return host[4:] if host.startswith("www.") else host or None
+
+
+def guess_company_domain(company: str, *, search_fn: SearchFn | None = None) -> str | None:
+    """Best-effort company domain from a public web search - never LinkedIn
+    itself. Used only to build unverified email-pattern guesses; never treat
+    this as confirmed."""
+    if not company:
+        return None
+    search = search_fn or _default_search
+    try:
+        hits = search(f'"{company}" official website', max_results=5)
+    except Exception:  # noqa: BLE001
+        return None
+    for hit in hits:
+        domain = _domain_of(hit.get("href") or "")
+        if domain and "." in domain and not any(
+            domain == blocked or domain.endswith(f".{blocked}") for blocked in _NOT_COMPANY_DOMAINS
+        ):
+            return domain
+    return None
+
+
+def guess_emails(name: str, domain: str | None) -> list[str]:
+    """Common corporate email-pattern guesses for ``name`` @ ``domain``.
+    These are PATTERN GUESSES, not looked-up addresses - there is no email-
+    finder API in this project (CLAUDE.md: no paid API keys). Always present
+    them as unverified; confirm before sending anything to one."""
+    if not domain:
+        return []
+    parts = [p for p in re.split(r"[^A-Za-z]+", name.lower()) if p]
+    if len(parts) < 2:
+        return []
+    first, last = parts[0], parts[-1]
+    candidates = [
+        f"{first}.{last}@{domain}",
+        f"{first}{last}@{domain}",
+        f"{first[0]}{last}@{domain}",
+        f"{first}@{domain}",
+    ]
+    seen: set[str] = set()
+    out: list[str] = []
+    for email in candidates:
+        if email not in seen:
+            seen.add(email)
+            out.append(email)
+    return out
+
+
 def search_people(
     company: str,
     role_hint: str | None = None,
     max_results: int = 5,
     *,
     search_fn: SearchFn | None = None,
-) -> list[dict[str, str]]:
+    guess_email: bool = True,
+) -> list[dict[str, Any]]:
     """Publicly-indexed LinkedIn profile hits for ``company``, most relevant
-    first. Never raises - a failed/blocked search just yields no results,
-    since the manual search-link button is always shown alongside this."""
+    first, each optionally carrying unverified email-pattern guesses. Never
+    raises - a failed/blocked search just yields no results, since the
+    manual search-link button is always shown alongside this."""
     if not company:
         return []
     search = search_fn or _default_search
@@ -69,7 +133,7 @@ def search_people(
     except Exception:  # noqa: BLE001 - web search must never break the card flow
         return []
 
-    people: list[dict[str, str]] = []
+    people: list[dict[str, Any]] = []
     seen_urls: set[str] = set()
     for hit in hits:
         person = _parse_hit(hit)
@@ -79,4 +143,9 @@ def search_people(
         people.append(person)
         if len(people) >= max_results:
             break
+
+    if guess_email and people:
+        domain = guess_company_domain(company, search_fn=search_fn)
+        for person in people:
+            person["guessed_emails"] = guess_emails(person["name"], domain)
     return people

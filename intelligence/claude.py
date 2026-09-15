@@ -53,6 +53,7 @@ Hard rules:
 - Only cite evidence via the exact `id` values present in `verified_evidence`.
 - Be conservative: if the evidence does not clearly support a core requirement,
   record it as a gap, not a fit.
+- Write every field in English, regardless of what language the job posting is in.
 - Output ONLY the JSON object, no prose, no markdown fences.
 
 JSON schema (all fields required):
@@ -80,6 +81,7 @@ Rules:
 - If the JD requires something the evidence does not support, do NOT claim it -
   list it in `warnings`.
 - Keep the recruiter email and referral/LinkedIn messages short and truthful.
+- Write every field in English, regardless of what language the JD is in.
 
 JSON schema (all fields required):
 {
@@ -119,6 +121,7 @@ INTERVIEW_SYSTEM = """\
 Help prepare for one interview using only verified evidence and the JD. Return a
 single JSON object, no prose, no fences. Do not invent projects, metrics or
 company facts - if you are not sure about the company, say so in company_brief.
+Write every field in English, regardless of what language the JD is in.
 
 {
   "company_brief": "<2-3 sentences, or 'NEEDS_CONFIRMATION - research manually'>",
@@ -139,6 +142,7 @@ object, no prose, no fences.
   networking-only draft.
 - Never fabricate a job, a mutual connection, or applicant experience.
 - The message is sent manually by the user; keep it under 90 words.
+- Write the draft in English, regardless of what language the headline is in.
 
 JSON schema (all fields required):
 {

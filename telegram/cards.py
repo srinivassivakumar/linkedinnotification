@@ -249,7 +249,7 @@ def inline_buttons(candidate: Candidate) -> dict[str, list[list[dict[str, str]]]
 def people_search_card(
     candidate: Candidate,
     contacts: list[dict[str, Any]] | None = None,
-    web_hits: list[dict[str, str]] | None = None,
+    web_hits: list[dict[str, Any]] | None = None,
 ) -> str:
     job = candidate.job
     lines = [
@@ -272,6 +272,9 @@ def people_search_card(
         for person in web_hits:
             role = f" — {person['title']}" if person.get("title") else ""
             lines.append(f"- {person['name']}{role}\n  {person['url']}")
+            emails = person.get("guessed_emails") or []
+            if emails:
+                lines.append(f"  possible email (GUESS, unverified): {' / '.join(emails[:2])}")
     if not contacts and not web_hits:
         hint = (candidate.intelligence or {}).get("human_path_hint") or "Search recruiter, talent partner, hiring manager, or team member."
         lines += ["", f"Hint: {hint}"]
