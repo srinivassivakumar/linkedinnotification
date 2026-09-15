@@ -20,10 +20,14 @@ from orchestrator.policies import normalize_text
 #      differ, so two distinct openings with different titles are kept apart.
 TRACKING_PARAMS = {
     "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
-    "gh_src", "gh_jid", "trk", "trkEmail", "ref", "refId", "referrer",
+    "gh_src", "trk", "trkEmail", "ref", "refId", "referrer",
     "source", "from", "originalSubdomain", "position", "pageNum", "s",
     "lever-origin", "lever-source",
 }
+# gh_jid is deliberately NOT here: on Greenhouse boards shaped like
+# "<company>.com/jobs/search?gh_jid=<id>" (e.g. Stripe), gh_jid IS the job's
+# identity, not tracking noise -- stripping it collapses every distinct
+# posting on that board down to one normalized URL.
 
 # Placeholder companies that alert-email parsers use when the email markup
 # doesn't reliably expose the company name (see sources/job_alert_emails.py,
