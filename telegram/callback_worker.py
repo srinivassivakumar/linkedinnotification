@@ -146,8 +146,13 @@ def handle_callback(
             return "jd_sent"
         if action == "people":
             bot.answer_callback_query(callback_id)
+            from linkedin.people_search import search_people
+
             contacts = store.contacts_for_company(candidate.job.company)
-            bot.send_message(people_search_card(candidate, contacts), people_search_buttons(candidate))
+            web_hits = [] if contacts else search_people(candidate.job.company, candidate.job.title)
+            bot.send_message(
+                people_search_card(candidate, contacts, web_hits), people_search_buttons(candidate)
+            )
             return "people_sent"
         if action in {"prepare", "resume", "email", "linkedin"}:
             # A non-live provider (CLAUDE_MODE=mock, i.e. the whole GitHub Actions

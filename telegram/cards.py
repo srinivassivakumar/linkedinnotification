@@ -246,7 +246,11 @@ def inline_buttons(candidate: Candidate) -> dict[str, list[list[dict[str, str]]]
     )
 
 
-def people_search_card(candidate: Candidate, contacts: list[dict[str, Any]] | None = None) -> str:
+def people_search_card(
+    candidate: Candidate,
+    contacts: list[dict[str, Any]] | None = None,
+    web_hits: list[dict[str, str]] | None = None,
+) -> str:
     job = candidate.job
     lines = [
         "👥 HUMAN PATH",
@@ -255,7 +259,7 @@ def people_search_card(candidate: Candidate, contacts: list[dict[str, Any]] | No
         job.company,
         job.title,
         "",
-        "Use these links to find a real person, then send the LinkedIn invite manually.",
+        "Verify identity yourself, then send the LinkedIn invite manually.",
         "When they accept, the Gmail watcher will detect the LinkedIn acceptance email and send a follow-up draft here.",
     ]
     if contacts:
@@ -263,7 +267,12 @@ def people_search_card(candidate: Candidate, contacts: list[dict[str, Any]] | No
         for contact in contacts[:5]:
             label = contact.get("title") or contact.get("role_type") or "contact"
             lines.append(f"- {contact.get('name')} ({label}) {contact.get('public_profile_url') or ''}")
-    else:
+    if web_hits:
+        lines += ["", "🔎 Found via public web search (unverified — confirm before reaching out):"]
+        for person in web_hits:
+            role = f" — {person['title']}" if person.get("title") else ""
+            lines.append(f"- {person['name']}{role}\n  {person['url']}")
+    if not contacts and not web_hits:
         hint = (candidate.intelligence or {}).get("human_path_hint") or "Search recruiter, talent partner, hiring manager, or team member."
         lines += ["", f"Hint: {hint}"]
     return "\n".join(lines)
