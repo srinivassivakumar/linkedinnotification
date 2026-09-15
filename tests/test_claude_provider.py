@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -17,9 +18,20 @@ from orchestrator.pipeline import (
 
 FIXTURE = Path("tests/fixtures/golden_jobs.json")
 
+# The fixture's posted_at values are anchored to the day it was authored, not
+# to "now" - shift every date by however much time has passed since that
+# anchor so freshness-based filtering keeps matching the fixture's intent
+# (most jobs fresh, one ~a month stale, one borderline, one unknown) no
+# matter when the suite runs.
+_FIXTURE_ANCHOR = datetime(2026, 9, 8, 3, 0, 0, tzinfo=timezone.utc)
+
 
 def _candidates():
     jobs = load_fixture(FIXTURE)
+    shift = datetime.now(timezone.utc) - _FIXTURE_ANCHOR
+    for job in jobs:
+        if job.posted_at is not None:
+            job.posted_at = job.posted_at + shift
     candidates, _ = build_candidates(
         jobs, load_preferences(), load_evidence(), load_sources_config()
     )
