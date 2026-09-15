@@ -20,8 +20,12 @@ from typing import Any, Callable
 from urllib.parse import urlparse
 
 _ROLE_HINTS = (
+    # "HR" is deliberately excluded: as a quoted 2-letter term inside this
+    # OR-group it reliably breaks DuckDuckGo's query parsing and returns
+    # garbage (one empty hit) instead of an error - "people operations"
+    # already covers that intent.
     "recruiter", "talent acquisition", "engineering manager",
-    "hiring manager", "HR", "people operations",
+    "hiring manager", "people operations",
 )
 
 # Hosts that turn up for "<company> official website" but are never the
@@ -36,20 +40,43 @@ _NOT_COMPANY_DOMAINS = {
 SearchFn = Callable[..., list[dict[str, Any]]]
 
 
+# The free ddgs/DuckDuckGo backend is a scraper, not an API: it occasionally
+# rate-limits or returns one garbage hit (empty title/href) for a perfectly
+# valid query, especially under repeated calls in a short window. Falling
+# through a couple of alternate backends smooths over that without needing
+# any paid search API.
+_SEARCH_BACKENDS = ("duckduckgo", "bing", "brave")
+
+
 def _default_search(query: str, *, max_results: int) -> list[dict[str, Any]]:
     from ddgs import DDGS
 
-    return DDGS(timeout=8).text(
-        query, region="in-en", safesearch="moderate", max_results=max_results
-    )
+    last: list[dict[str, Any]] = []
+    for backend in _SEARCH_BACKENDS:
+        try:
+            hits = DDGS(timeout=8).text(
+                query, region="in-en", safesearch="moderate",
+                max_results=max_results, backend=backend,
+            )
+        except Exception:  # noqa: BLE001 - try the next backend
+            continue
+        if any(hit.get("href") for hit in hits):
+            return hits
+        last = hits
+    return last
 
 
 def _build_query(company: str, role_hint: str | None) -> str:
+    """role_hint (usually a full job title like "Analytics Engineer -
+    Finance") is deliberately NOT quoted into the query as an exact phrase:
+    that almost never appears verbatim on someone's LinkedIn profile, and
+    combined with a quoted company name it over-constrains the search until
+    DuckDuckGo returns nothing at all. Company + a recruiter/HR/hiring-role
+    OR-group is the actually useful, high-recall query - it surfaces exactly
+    who you'd want to reach out to (recruiters, hiring managers), regardless
+    of the specific job title."""
     role_terms = " OR ".join(f'"{term}"' for term in _ROLE_HINTS)
-    parts = [f'"{company}"', f"({role_terms})", "linkedin"]
-    if role_hint:
-        parts.insert(1, f'"{role_hint}"')
-    return " ".join(parts)
+    return f'"{company}" ({role_terms}) linkedin'
 
 
 def _parse_hit(hit: dict[str, Any]) -> dict[str, str] | None:
