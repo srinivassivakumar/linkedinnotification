@@ -2,6 +2,16 @@ sources:
   ats:
     greenhouse:
       enabled: true
+      # Verified boards-api.greenhouse.io/v1/boards/<slug>/jobs returned HTTP
+      # 200 with active India-located postings (Pune/Bengaluru/Hyderabad/etc.)
+      # on 2026-09-16. postman/groww/turing have a real India presence;
+      # gitlab/elastic/cloudflare/datadog/samsara are global companies with
+      # confirmed India engineering hiring. Checked and rejected (0 India
+      # postings, not worth the fetch): slice, asana, dropbox, reddit, brex,
+      # gusto, webflow, razorpay/swiggy/phonepe/cred/zerodha/delhivery (not on
+      # Greenhouse at all - most India-native companies use Naukri/Darwinbox/
+      # custom ATS instead, which is why this list stays short and curated
+      # rather than trying to guess every Indian company's slug).
       boards:
         - stripe
         - databricks
@@ -10,6 +20,14 @@ sources:
         - mongodb
         - figma
         - airtable
+        - postman
+        - groww
+        - turing
+        - gitlab
+        - elastic
+        - cloudflare
+        - datadog
+        - samsara
     lever:
       enabled: true
       # Verified: api.lever.co/v0/postings/<slug> returned HTTP 200 with active
@@ -22,6 +40,9 @@ sources:
         - palantir
     ashby:
       enabled: true
+      # notion and replit confirmed India-located postings (api.ashbyhq.com
+      # /posting-api/job-board/<slug>) on 2026-09-16; linear/ramp checked and
+      # rejected (0 India postings).
       companies:
         - openai
         - cursor
@@ -29,6 +50,8 @@ sources:
         - perplexity
         - snowflake
         - zapier
+        - notion
+        - replit
     workday:
       # Free, official Workday CXS JSON API. host/tenant/site come from the
       # careers URL: https://{tenant}.wdN.myworkdayjobs.com/en-US/{site}
