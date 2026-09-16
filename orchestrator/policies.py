@@ -38,6 +38,34 @@ def matching_text(job: Job) -> str:
     return f"{job.title} {job.company} {job.location or ''} {job.description}".lower()
 
 
+def matched_preferred_index(location: str, preferred: list[str]) -> int | None:
+    """Index of the first entry in an already-lowercased locations.preferred
+    list that ``location`` (already lowercased) matches, or None. Shared by
+    the scorer (turns into location points) and location_rank (turns into
+    notification order), so "which preferred city did this match" is only
+    computed one way."""
+    return next((i for i, city in enumerate(preferred) if city in location), None)
+
+
+def location_rank(location: str | None, preferred: list[str]) -> int:
+    """Lower sorts first. locations.preferred is written in priority order
+    (e.g. Pune, Bengaluru, Hyderabad, ...other cities..., Remote India), so
+    this ranks a job by which entry it matched - not by the overall score,
+    which blends in freshness/evidence/seniority and can't guarantee a
+    strict city-first ordering on its own."""
+    loc = (location or "").lower()
+    if not loc:
+        return len(preferred) + 2
+    idx = matched_preferred_index(loc, [c.lower() for c in preferred])
+    if idx is not None:
+        return idx
+    if "remote" in loc and "india" in loc:
+        return len(preferred)
+    if "india" in loc:
+        return len(preferred) + 1
+    return len(preferred) + 2
+
+
 def location_decision(job: Job, preferences: dict[str, Any]) -> FilterDecision:
     location = (job.location or "").lower()
     if not location:

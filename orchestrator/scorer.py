@@ -6,6 +6,7 @@ from typing import Any
 
 from orchestrator.freshness import freshness_status
 from orchestrator.models import Job, ScoreResult
+from orchestrator.policies import matched_preferred_index
 
 
 def _terms(preferences: dict[str, Any], evidence: list[dict[str, Any]]) -> set[str]:
@@ -62,10 +63,12 @@ def score_job(
     else:
         # locations.preferred is an ordered list (e.g. Pune, Bengaluru,
         # Hyderabad, ...other cities..., Remote India) - earlier entries score
-        # higher so cards naturally sort Pune first, then Bengaluru, then
-        # Hyderabad, then the other listed cities, with Remote India last
-        # among preferred locations.
-        matched_idx = next((i for i, item in enumerate(preferred) if item in location), None)
+        # higher, giving Pune/Bengaluru/Hyderabad a bit more pull than the
+        # rest. Strict city-first *ordering* of notifications is enforced
+        # separately by telegram.bot.send_candidates via location_rank - this
+        # score alone can't guarantee that since it's blended with other
+        # signals (freshness, evidence overlap, ...).
+        matched_idx = matched_preferred_index(location, preferred)
         if matched_idx is not None:
             location_points = max(7, 10 - matched_idx)
         elif "remote" in location and "india" in location:

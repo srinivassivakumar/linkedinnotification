@@ -26,6 +26,7 @@ locations:
     - Chennai
     - Delhi NCR
     - Gurgaon
+    - Gurugram
     - Noida
     - Remote India
   allowed_country:

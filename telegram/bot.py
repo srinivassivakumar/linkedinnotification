@@ -114,10 +114,15 @@ class TelegramBot:
             return {"ok": False, "error": str(exc)}
 
     def send_candidates(self, candidates: list[Candidate]) -> list[str]:
+        from orchestrator.policies import load_preferences, location_rank
+
+        preferred = load_preferences().get("locations", {}).get("preferred", [])
+        ordered = sorted(
+            (c for c in candidates if c.score.bucket != "weak"),
+            key=lambda c: (location_rank(c.job.location, preferred), -c.score.pre_score),
+        )
         sent: list[str] = []
-        for candidate in candidates:
-            if candidate.score.bucket == "weak":
-                continue
+        for candidate in ordered:
             if self._try_send(candidate_card(candidate), inline_buttons(candidate)).get("ok"):
                 sent.append(candidate.job_key)
         return sent
