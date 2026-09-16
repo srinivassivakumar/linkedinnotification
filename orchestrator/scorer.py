@@ -59,10 +59,19 @@ def score_job(
     location_points = 5
     if not location:
         warnings_out.append("location unknown")
-    elif any(item in location for item in preferred) or ("remote" in location and "india" in location):
-        location_points = 10
-    elif "india" in location:
-        location_points = 7
+    else:
+        # locations.preferred is an ordered list (e.g. Pune, Bengaluru,
+        # Hyderabad, ...other cities..., Remote India) - earlier entries score
+        # higher so cards naturally sort Pune first, then Bengaluru, then
+        # Hyderabad, then the other listed cities, with Remote India last
+        # among preferred locations.
+        matched_idx = next((i for i, item in enumerate(preferred) if item in location), None)
+        if matched_idx is not None:
+            location_points = max(7, 10 - matched_idx)
+        elif "remote" in location and "india" in location:
+            location_points = 6
+        elif "india" in location:
+            location_points = 6
 
     matched_terms = sorted(term for term in _terms(preferences, verified_evidence) if _contains_term(text, term))
     evidence_points = min(25, len(matched_terms) * 4)

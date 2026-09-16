@@ -44,15 +44,20 @@ def location_decision(job: Job, preferences: dict[str, Any]) -> FilterDecision:
         return FilterDecision(keep=True, stage="location", reason="unknown_location", warnings=["location unknown"])
     preferred = [item.lower() for item in preferences.get("locations", {}).get("preferred", [])]
     allowed = [item.lower() for item in preferences.get("locations", {}).get("allowed_country", [])]
-    if "remote" in location and ("india" in location or not allowed):
-        return FilterDecision(keep=True, stage="location", reason="remote_india_or_unknown")
-    if any(item.lower() in location for item in preferred):
+    if any(item in location for item in preferred):
         return FilterDecision(keep=True, stage="location", reason="preferred_location")
-    if allowed and not any(country in location for country in allowed):
-        clear_foreign = any(term in location for term in ["united states", "usa", "us only", "canada", "europe", "germany", "uk"])
-        if clear_foreign:
-            return FilterDecision(keep=False, stage="location", reason="wrong_country")
-    return FilterDecision(keep=True, stage="location", reason="location_uncertain", warnings=["location not clearly preferred"])
+    if "remote" in location and "india" in location:
+        return FilterDecision(keep=True, stage="location", reason="remote_india")
+    if not allowed:
+        return FilterDecision(keep=True, stage="location", reason="location_uncertain", warnings=["location not clearly preferred"])
+    if any(country in location for country in allowed):
+        return FilterDecision(keep=True, stage="location", reason="allowed_country")
+    # allowed_country IS configured and this location matches none of it,
+    # none of the preferred cities, and isn't remote-India - fail closed
+    # instead of the old narrow "clearly foreign" keyword list, which missed
+    # plain city names (Berlin, Munich, Paris, London, ...) and let them
+    # through as merely "uncertain" rather than rejecting them.
+    return FilterDecision(keep=False, stage="location", reason="wrong_country")
 
 
 def seniority_decision(job: Job, preferences: dict[str, Any]) -> FilterDecision:
